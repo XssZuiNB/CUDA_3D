@@ -1,0 +1,23 @@
+---
+BasedOnStyle: Microsoft
+# Class definition private, public not indented
+AccessModifierOffset: -4
+IndentWidth: 4
+# Constructor initializer list new lines for every member
+BreakConstructorInitializers: BeforeComma
+# switch-case, case not indented
+IndentCaseLabels: false
+# Force pointers to align with type e.g., int *foo
+DerivePointerAlignment: false
+PointerAlignment: Right
+# Maximum characters in one line
+ColumnLimit: 100
+# Line break between function definitions
+SeparateDefinitionBlocks : Always
+---
+Language: Proto
+# Often proto files can be made more readable without formating
+DisableFormat: true
+---
+Language: JavaScript
+...
