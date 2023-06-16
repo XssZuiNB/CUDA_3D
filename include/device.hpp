@@ -1,9 +1,9 @@
 #pragma once
 
-#include<string>
+#include <string>
 
-
-namespace gca {
+namespace gca
+{
 class device
 {
 private:
@@ -21,4 +21,4 @@ device::device(/* args */)
 device::~device()
 {
 }
-}
+} // namespace gca

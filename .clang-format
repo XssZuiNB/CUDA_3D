@@ -14,10 +14,3 @@ PointerAlignment: Right
 ColumnLimit: 100
 # Line break between function definitions
 SeparateDefinitionBlocks : Always
----
-Language: Proto
-# Often proto files can be made more readable without formating
-DisableFormat: true
----
-Language: JavaScript
-...
