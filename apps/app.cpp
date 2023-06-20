@@ -20,7 +20,7 @@ void transform_point_to_point(float to_point[3], const gca::extrinsics *extrin,
 void uv_to_xyz(const float uv[2], float depth, float xyz[3], float depth_scale,
                const gca::intrinsics &depth_in)
 {
-    auto z = depth / depth_scale;
+    auto z = depth * depth_scale;
     xyz[2] = z;
     xyz[0] = (uv[0] - depth_in.cx) * z / depth_in.fx;
     xyz[1] = (uv[1] - depth_in.cy) * z / depth_in.fy;
