@@ -10,9 +10,9 @@ realsense_device::realsense_device()
 {
 }
 
-realsense_device::realsense_device(uint32_t wight, uint32_t height, uint8_t fps,
+realsense_device::realsense_device(uint32_t width, uint32_t height, uint8_t fps,
                                    gca::frame_format color_format, gca::frame_format depth_format)
-    : device(wight, height, fps, color_format, depth_format)
+    : device(width, height, fps, color_format, depth_format)
 {
     auto realsense_color_format = RS2_FORMAT_BGR8;
     auto realsense_depth_format = RS2_FORMAT_Z16;
@@ -38,8 +38,8 @@ realsense_device::realsense_device(uint32_t wight, uint32_t height, uint8_t fps,
         break;
     }
 
-    m_config.enable_stream(RS2_STREAM_COLOR, wight, height, realsense_color_format, fps);
-    m_config.enable_stream(RS2_STREAM_DEPTH, wight, height, realsense_depth_format, fps);
+    m_config.enable_stream(RS2_STREAM_COLOR, width, height, realsense_color_format, fps);
+    m_config.enable_stream(RS2_STREAM_DEPTH, width, height, realsense_depth_format, fps);
 }
 
 bool realsense_device::find_device()
@@ -53,6 +53,8 @@ bool realsense_device::find_device()
     }
 
     m_device = list.front(); // TODO: Always get the first device, could be changed
+
+    m_config.enable_device(m_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
 
     m_device_name = m_device.get_info(RS2_CAMERA_INFO_NAME);
 
@@ -87,6 +89,20 @@ bool realsense_device::start_stream()
     }
 
     return true;
+}
+
+float realsense_device::read_depth_scale()
+{
+    for (auto &sensor : m_device.query_sensors())
+    {
+        // Check if the sensor if a depth sensor
+        if (auto dpt = sensor.as<rs2::depth_sensor>())
+        {
+            return dpt.get_depth_scale();
+        }
+    }
+
+    return 0.0;
 }
 
 gca::intrinsics realsense_device::read_color_intrinsics()

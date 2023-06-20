@@ -10,7 +10,7 @@ class realsense_device : public gca::device
 public:
     realsense_device();
 
-    realsense_device(uint32_t wight, uint32_t height, uint8_t fps,
+    realsense_device(uint32_t width, uint32_t height, uint8_t fps,
                      gca::frame_format color_format = BGR8, gca::frame_format depth_format = Z16);
 
     realsense_device(const realsense_device &) = delete;
@@ -43,6 +43,7 @@ private:
 private:
     bool find_device() final;
     bool start_stream() final;
+    float read_depth_scale() final;
     gca::intrinsics read_color_intrinsics() final;
     gca::intrinsics read_depth_intrinsics() final;
     gca::extrinsics read_color_to_depth_extrinsics() final;

@@ -24,7 +24,7 @@ target_include_directories(
     device_lib
     PUBLIC
     ../../include
-    ${${OpenCV_INCLUDE_DIRS}}
+    ${OpenCV_INCLUDE_DIRS}
 )
 
 target_link_libraries(

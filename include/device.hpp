@@ -14,9 +14,9 @@ class device
 public:
     device() = delete;
 
-    device(uint32_t wight, uint32_t height, uint8_t fps, gca::frame_format color_format,
+    device(uint32_t width, uint32_t height, uint8_t fps, gca::frame_format color_format,
            gca::frame_format depth_format)
-        : m_width(wight)
+        : m_width(width)
         , m_height(height)
         , m_fps(fps)
         , m_color_format(color_format)
@@ -40,6 +40,7 @@ public:
             std::cout << "Couldn't start stream!" << std::endl;
             return false;
         }
+        m_depth_scale = read_depth_scale();
         m_color_intrinsics = read_color_intrinsics();
         m_depth_intrinsics = read_depth_intrinsics();
         m_color_to_depth_extrinsics = read_color_to_depth_extrinsics();
@@ -48,6 +49,16 @@ public:
         m_device_started = true;
 
         return true;
+    }
+
+    float get_depth_scale()
+    {
+        if (!m_device_started)
+        {
+            std::cout << "Device not started, invalid depth_scale returned!" << std::endl;
+        }
+
+        return m_depth_scale;
     }
 
     const gca::intrinsics &get_color_intrinsics()
@@ -139,6 +150,8 @@ protected:
     const uint8_t m_fps;
     const gca::frame_format m_color_format;
     const gca::frame_format m_depth_format;
+
+    float m_depth_scale;
     gca::intrinsics m_color_intrinsics;
     gca::intrinsics m_depth_intrinsics;
     gca::extrinsics m_color_to_depth_extrinsics;
@@ -149,6 +162,7 @@ protected:
 private:
     virtual bool find_device() = 0;
     virtual bool start_stream() = 0;
+    virtual float read_depth_scale() = 0;
     virtual gca::intrinsics read_color_intrinsics() = 0;
     virtual gca::intrinsics read_depth_intrinsics() = 0;
     virtual gca::extrinsics read_color_to_depth_extrinsics() = 0;
