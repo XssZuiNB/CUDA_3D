@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
     auto depth_scale = rs_cam->get_depth_scale();
 
-    while (true)
+    for (size_t i = 0; i < 200; i++)
     {
         rs_cam->receive_data();
         cv::Mat color = rs_cam->get_color_cv_mat();
@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
 
         cv::Mat result = cv::Mat::zeros(cv::Size(640, 480), CV_8UC3);
         //对深度图像遍历
+        auto start = std::chrono::steady_clock::now();
+
         for (int row = 0; row < depth.rows; row++)
         {
             for (int col = 0; col < depth.cols; col++)
@@ -75,13 +77,9 @@ int main(int argc, char *argv[])
                 xyz_to_uv(pc_uv, Pcc3, c_in);
 
                 //取得映射后的（u,v)
-                auto x = (int)round(pc_uv[0]);
-                auto y = (int)round(pc_uv[1]);
-                //            if(x<0||x>color.cols)
-                //                continue;
-                //            if(y<0||y>color.rows)
-                //                continue;
-                //最值限定
+                auto x = round(pc_uv[0]);
+                auto y = round(pc_uv[1]);
+
                 if (x < 0 || x > depth.cols - 1 || y < 0 || y > depth.rows - 1)
                 {
                     continue;
@@ -89,12 +87,14 @@ int main(int argc, char *argv[])
                 //将成功映射的点用彩色图对应点的RGB数据覆盖
                 for (int k = 0; k < 3; k++)
                 {
-                    //这里设置了只显示1米距离内的东西
-
                     result.at<cv::Vec3b>(y, x)[k] = color.at<cv::Vec3b>(y, x)[k];
                 }
             }
         }
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "Time in milliseconds: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << " ms" << std::endl;
 
         cv::imshow("color", color);
         cv::imshow("result", result);

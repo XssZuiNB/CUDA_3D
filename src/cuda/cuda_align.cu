@@ -10,7 +10,6 @@
 #include "cuda_util.cuh"
 #include "type.hpp"
 
-/*
 __device__ static void cuda_transform_point_to_point(float to_point[3],
                                                      const gca::extrinsics *extrin,
                                                      const float from_point[3])
@@ -23,6 +22,7 @@ __device__ static void cuda_transform_point_to_point(float to_point[3],
                   extrin->rotation[8] * from_point[2] + extrin->translation[2];
 }
 
+/*
 __global__ void kernel_color_to_depth(uint8_t *aligned_out, const uint32_t width,
                                       const uint32_t height const uint16_t *depth_in,
                                       const uint8_t *color_in,
