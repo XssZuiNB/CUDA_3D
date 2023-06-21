@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     typedef pcl::PointCloud<PointT> PointCloud;
     PointCloud::Ptr cloud(new PointCloud);
 
-    pcl::visualization::CloudViewer("viewer");
+    pcl::visualization::CloudViewer viewer("viewer");
 
     // while (true)
     //{
@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
 
     std::cout << cloud->size();
     //}
+    viewer.showCloud(cloud);
 
     return 0;
 }
