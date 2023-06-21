@@ -1,4 +1,5 @@
 set(app ${CMAKE_PROJECT_NAME})
+find_package(PCL REQUIRED)
 
 add_executable(
     ${app}
@@ -15,9 +16,11 @@ target_include_directories(
     ${app}
     PUBLIC
     ../include
+    ${PCL_INCLUDE_DIRS}
 )
 target_link_libraries(
     ${app}
     PUBLIC
     device_lib
+    ${PCL_LIBRARIES}
 )

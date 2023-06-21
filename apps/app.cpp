@@ -4,6 +4,10 @@
 #include <opencv4/opencv2/opencv.hpp>
 #include <thread>
 
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/visualization/cloud_viewer.h>
+
 #include "realsense_device.hpp"
 
 void transform_point_to_point(float to_point[3], const gca::extrinsics *extrin,
@@ -17,8 +21,8 @@ void transform_point_to_point(float to_point[3], const gca::extrinsics *extrin,
                   extrin->rotation[8] * from_point[2] + extrin->translation[2];
 }
 
-void uv_to_xyz(const float uv[2], float depth, float xyz[3], float depth_scale,
-               const gca::intrinsics &depth_in)
+void depth_to_xyz(const float uv[2], float depth, float xyz[3], float depth_scale,
+                  const gca::intrinsics &depth_in)
 {
     auto z = depth * depth_scale;
     xyz[2] = z;
@@ -45,66 +49,71 @@ int main(int argc, char *argv[])
 
     auto depth_scale = rs_cam->get_depth_scale();
 
-    for (size_t i = 0; i < 200; i++)
+    // 定义点云类型
+    typedef pcl::PointXYZRGBA PointT;
+    typedef pcl::PointCloud<PointT> PointCloud;
+    PointCloud::Ptr cloud(new PointCloud);
+
+    pcl::visualization::CloudViewer("viewer");
+
+    // while (true)
+    //{
+    // cloud.clear();
+    rs_cam->receive_data();
+    cv::Mat color = rs_cam->get_color_cv_mat();
+    cv::Mat depth = rs_cam->get_depth_cv_mat();
+
+    //平面点
+    float pd_uv[2], pc_uv[2];
+    //空间点定义
+    float Pdc3[3], Pcc3[3];
+
+    //对深度图像遍历
+    auto start = std::chrono::steady_clock::now();
+
+    for (int row = 0; row < depth.rows; row++)
     {
-        rs_cam->receive_data();
-        cv::Mat color = rs_cam->get_color_cv_mat();
-        cv::Mat depth = rs_cam->get_depth_cv_mat();
-
-        //平面点
-        float pd_uv[2], pc_uv[2];
-        //空间点定义
-        float Pdc3[3], Pcc3[3];
-
-        cv::Mat result = cv::Mat::zeros(cv::Size(640, 480), CV_8UC3);
-        //对深度图像遍历
-        auto start = std::chrono::steady_clock::now();
-
-        for (int row = 0; row < depth.rows; row++)
+        for (int col = 0; col < depth.cols; col++)
         {
-            for (int col = 0; col < depth.cols; col++)
+            // 取当前点对应的深度值
+            uint16_t depth_value = depth.at<uint16_t>(row, col);
+            if (depth_value == 0)
+                continue;
+
+            PointT p;
+            pd_uv[0] = col;
+            pd_uv[1] = row;
+            //将深度图的像素点根据内参转换到深度摄像头坐标系下的三维点
+            depth_to_xyz(pd_uv, depth_value, Pdc3, depth_scale, d_in);
+            p.x = Pdc3[0];
+            p.y = Pdc3[1];
+            p.z = Pdc3[2];
+            //将深度摄像头坐标系的三维点转化到彩色摄像头坐标系下
+            transform_point_to_point(Pcc3, &ex_d_to_c, Pdc3);
+            // 从rgb图像中获取它的颜色
+            //将彩色摄像头坐标系下的深度三维点映射到二维平面上
+            xyz_to_uv(pc_uv, Pcc3, c_in);
+            auto x = pc_uv[0] + 0.6f;
+            auto y = pc_uv[1] + 0.6f;
+            if (x < 0 || x > depth.cols - 1 || y < 0 || y > depth.rows - 1)
             {
-                //将当前的(x,y)放入数组pd_uv，表示当前深度图的点
-                pd_uv[0] = col;
-                pd_uv[1] = row;
-                //取当前点对应的深度值
-                uint16_t depth_value = depth.at<uint16_t>(row, col);
-                //将深度图的像素点根据内参转换到深度摄像头坐标系下的三维点
-                uv_to_xyz(pd_uv, depth_value, Pdc3, depth_scale, d_in);
-                //将深度摄像头坐标系的三维点转化到彩色摄像头坐标系下
-                transform_point_to_point(Pcc3, &ex_d_to_c, Pdc3);
-                //将彩色摄像头坐标系下的深度三维点映射到二维平面上
-                xyz_to_uv(pc_uv, Pcc3, c_in);
-
-                //取得映射后的（u,v)
-                auto x = round(pc_uv[0]);
-                auto y = round(pc_uv[1]);
-
-                if (x < 0 || x > depth.cols - 1 || y < 0 || y > depth.rows - 1)
-                {
-                    continue;
-                }
-                //将成功映射的点用彩色图对应点的RGB数据覆盖
-                for (int k = 0; k < 3; k++)
-                {
-                    result.at<cv::Vec3b>(y, x)[k] = color.at<cv::Vec3b>(y, x)[k];
-                }
+                continue;
             }
-        }
-        auto end = std::chrono::steady_clock::now();
-        std::cout << "Time in milliseconds: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                  << " ms" << std::endl;
+            p.b = color.at<cv::Vec3b>(y, x)[0];
+            p.g = color.at<cv::Vec3b>(y, x)[1];
+            p.r = color.at<cv::Vec3b>(y, x)[2];
 
-        cv::imshow("color", color);
-        cv::imshow("result", result);
-
-        if (cv::waitKey(30) == 27) // Wait for 'esc' key press to exit
-        {
-            break;
+            // 把p加入到点云中
+            cloud->points.push_back(p);
         }
     }
-    cv::destroyAllWindows();
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "Time in milliseconds: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms"
+              << std::endl;
+
+    std::cout << cloud->size();
+    //}
 
     return 0;
 }
