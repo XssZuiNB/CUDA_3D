@@ -28,4 +28,10 @@ enum device_type
 {
     REALSENSE,
 };
+
+struct point_t
+{
+    float x, y, z;
+    uint8_t b, g, r;
+};
 } // namespace gca
