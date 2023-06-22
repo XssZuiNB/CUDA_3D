@@ -14,11 +14,11 @@
 void transform_point_to_point(float to_point[3], const gca::extrinsics *extrin,
                               const float from_point[3])
 {
-    to_point[0] = extrin->rotation[0] * from_point[0] + extrin->rotation[1] * from_point[1] +
-                  extrin->rotation[2] * from_point[2] + extrin->translation[0];
-    to_point[1] = extrin->rotation[3] * from_point[0] + extrin->rotation[4] * from_point[1] +
-                  extrin->rotation[5] * from_point[2] + extrin->translation[1];
-    to_point[2] = extrin->rotation[6] * from_point[0] + extrin->rotation[7] * from_point[1] +
+    to_point[0] = extrin->rotation[0] * from_point[0] + extrin->rotation[3] * from_point[1] +
+                  extrin->rotation[6] * from_point[2] + extrin->translation[0];
+    to_point[1] = extrin->rotation[1] * from_point[0] + extrin->rotation[4] * from_point[1] +
+                  extrin->rotation[7] * from_point[2] + extrin->translation[1];
+    to_point[2] = extrin->rotation[2] * from_point[0] + extrin->rotation[5] * from_point[1] +
                   extrin->rotation[8] * from_point[2] + extrin->translation[2];
 }
 
@@ -56,6 +56,9 @@ int main(int argc, char *argv[])
     typedef pcl::PointXYZRGBA PointT;
     typedef pcl::PointCloud<PointT> PointCloud;
     PointCloud::Ptr cloud(new PointCloud);
+
+    pcl::visualization::CloudViewer viewer("viewer");
+
     while (true)
     {
         cloud->clear();
@@ -72,27 +75,37 @@ int main(int argc, char *argv[])
         if (!gpu_make_point_set(points, 640, 480, (uint16_t *)depth, (uint8_t *)color, d_in, c_in,
                                 ex_d_to_c, depth_scale))
             std::cout << "fault" << std::endl;
+        auto end = std::chrono::steady_clock::now();
 
         for (auto point : points)
         {
             if (point.z != 0)
             {
-                PointT p(point.x, point.y, point.z, point.r, point.g, point.b, 255);
+                PointT p;
+                p.x = point.x;
+                p.y = point.y;
+                p.z = point.z;
+                p.r = point.r;
+                p.g = point.g;
+                p.b = point.b;
                 cloud->points.push_back(p);
             }
         }
-        auto end = std::chrono::steady_clock::now();
+
         std::cout << "Time in milliseconds: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
         std::cout << cloud->size();
-    }
-    /*
-        pcl::visualization::CloudViewer viewer("viewer");
 
-        // while (true)
-        //{
-        // cloud.clear();
+        viewer.showCloud(cloud);
+    }
+    while (!viewer.wasStopped())
+    {
+    }
+
+    while (true)
+    {
+        cloud->clear();
         rs_cam->receive_data();
         cv::Mat color = rs_cam->get_color_cv_mat();
         cv::Mat depth = rs_cam->get_depth_cv_mat();
@@ -143,14 +156,12 @@ int main(int argc, char *argv[])
         }
         auto end = std::chrono::steady_clock::now();
         std::cout << "Time in milliseconds: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "
-       ms"
-                  << std::endl;
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms " << std::endl;
 
         std::cout << cloud->size();
-        //}
         viewer.showCloud(cloud);
-    */
+    }
 
     return 0;
 }

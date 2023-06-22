@@ -27,11 +27,11 @@ if(${CMAKE_VERSION} GREATER_EQUAL 3.18)
     set_target_properties(
         cuda_lib
         PROPERTIES
-        CUDA_ARCHITECTURES "70"
-    )
+        CUDA_ARCHITECTURES "52,70")
+
 else()
     message("CMake version less than 3.18, set CUDA_ARCHITECTURES in compile options")
-    target_compile_options(cuda_lib PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_89,code=sm_89>)
+    target_compile_options(cuda_lib PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_61,code=sm_61>)
 endif()
 
 target_compile_definitions(

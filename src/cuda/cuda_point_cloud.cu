@@ -60,15 +60,15 @@ template <typename T> bool alloc_dev(std::shared_ptr<T> &cuda_ptr, int elements)
 __device__ static void __transform_point_to_point(float to_point[3], const float from_point[3],
                                                   const gca::extrinsics &extrin)
 {
-    to_point[0] = extrin.rotation[0] * from_point[0] + extrin.rotation[1] * from_point[1] +
-                  extrin.rotation[2] * from_point[2] + extrin.translation[0];
-    to_point[1] = extrin.rotation[3] * from_point[0] + extrin.rotation[4] * from_point[1] +
-                  extrin.rotation[5] * from_point[2] + extrin.translation[1];
-    to_point[2] = extrin.rotation[6] * from_point[0] + extrin.rotation[7] * from_point[1] +
+    to_point[0] = extrin.rotation[0] * from_point[0] + extrin.rotation[3] * from_point[1] +
+                  extrin.rotation[6] * from_point[2] + extrin.translation[0];
+    to_point[1] = extrin.rotation[1] * from_point[0] + extrin.rotation[4] * from_point[1] +
+                  extrin.rotation[7] * from_point[2] + extrin.translation[1];
+    to_point[2] = extrin.rotation[2] * from_point[0] + extrin.rotation[5] * from_point[1] +
                   extrin.rotation[8] * from_point[2] + extrin.translation[2];
 }
 
-__device__ static void __depth_uv_to_xyz(const int uv[2], const float depth, float xyz[3],
+__device__ static void __depth_uv_to_xyz(const float uv[2], const float depth, float xyz[3],
                                          const float depth_scale,
                                          const gca::intrinsics &depth_intrin)
 {
@@ -101,7 +101,7 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
     if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
     {
-        int depth_uv[2] = {depth_x, depth_y};
+        float depth_uv[2] = {depth_x - 0.5f, depth_y - 0.5f};
         float depth_xyz[3];
 
         const uint16_t depth_value = depth_data[depth_pixel_index];
@@ -120,8 +120,8 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
         __xyz_to_color_uv(color_xyz, color_uv, *color_intrin);
 
-        const int target_x = color_uv[0] + 0.5f;
-        const int target_y = color_uv[1] + 0.5f;
+        const int target_x = static_cast<int>(color_uv[0] + 0.5f);
+        const int target_y = static_cast<int>(color_uv[1] + 0.5f);
 
         if (target_x >= 0 && target_x < width && target_y >= 0 && target_y < height)
         {
@@ -130,10 +130,10 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
             p.y = -depth_xyz[1];
             p.z = -depth_xyz[2];
 
-            const int color_offset = 3 * depth_pixel_index;
-            p.b = color_data[color_offset + 0];
-            p.g = color_data[color_offset + 1];
-            p.r = color_data[color_offset + 2];
+            const int color_index = 3 * (target_y * width + target_x);
+            p.b = color_data[color_index + 0];
+            p.g = color_data[color_index + 1];
+            p.r = color_data[color_index + 2];
 
             point_set_out[depth_pixel_index] = p;
         }
@@ -161,6 +161,7 @@ bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t hei
     auto depth_pixel_count = width * height;
     auto depth_byte_size = sizeof(uint16_t) * depth_pixel_count;
     auto color_byte_size = sizeof(uint8_t) * depth_pixel_count * 3;
+    auto result_byte_size = sizeof(gca::point_t) * depth_pixel_count;
 
     std::shared_ptr<uint16_t> depth_frame_ptr;
     std::shared_ptr<uint8_t> color_frame_ptr;
@@ -174,7 +175,7 @@ bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t hei
     cudaMemcpy(color_frame_ptr.get(), color_data, color_byte_size, cudaMemcpyHostToDevice);
 
     std::shared_ptr<gca::point_t> result_ptr;
-    if (!alloc_dev(result_ptr, depth_pixel_count))
+    if (!alloc_dev(result_ptr, result_byte_size))
         return false;
 
     // config threads
@@ -188,8 +189,7 @@ bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t hei
 
     cudaDeviceSynchronize();
 
-    cudaMemcpy(result, result_ptr.get(), sizeof(gca::point_t) * depth_pixel_count,
-               cudaMemcpyDeviceToHost);
+    cudaMemcpy(result, result_ptr.get(), result_byte_size, cudaMemcpyDeviceToHost);
 
     return true;
 }
