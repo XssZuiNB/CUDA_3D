@@ -11,6 +11,7 @@
 #include "cuda_point_cloud.cuh"
 #include "realsense_device.hpp"
 
+/* test function
 void transform_point_to_point(float to_point[3], const gca::extrinsics *extrin,
                               const float from_point[3])
 {
@@ -37,6 +38,7 @@ void xyz_to_uv(int uv[2], const float xyz[3], const gca::intrinsics &color_in)
     uv[0] = (xyz[0] * color_in.fx / xyz[2]) + color_in.cx;
     uv[1] = (xyz[1] * color_in.fy / xyz[2]) + color_in.cy;
 }
+*/
 
 int main(int argc, char *argv[])
 {
@@ -77,6 +79,7 @@ int main(int argc, char *argv[])
             std::cout << "fault" << std::endl;
         auto end = std::chrono::steady_clock::now();
 
+        /* this loop is very slow */
         for (auto point : points)
         {
             if (point.z != 0)
@@ -103,6 +106,7 @@ int main(int argc, char *argv[])
     {
     }
 
+    /* test cpu point cloud
     while (true)
     {
         cloud->clear();
@@ -110,19 +114,17 @@ int main(int argc, char *argv[])
         cv::Mat color = rs_cam->get_color_cv_mat();
         cv::Mat depth = rs_cam->get_depth_cv_mat();
 
-        //平面点
         int pd_uv[2], pc_uv[2];
-        //空间点定义
+
         float Pdc3[3], Pcc3[3];
 
-        //对深度图像遍历
         auto start = std::chrono::steady_clock::now();
 
         for (int row = 0; row < depth.rows; row++)
         {
             for (int col = 0; col < depth.cols; col++)
             {
-                // 取当前点对应的深度值
+
                 uint16_t depth_value = depth.at<uint16_t>(row, col);
                 if (depth_value == 0)
                     continue;
@@ -130,15 +132,14 @@ int main(int argc, char *argv[])
                 PointT p;
                 pd_uv[0] = col;
                 pd_uv[1] = row;
-                //将深度图的像素点根据内参转换到深度摄像头坐标系下的三维点
+
                 depth_to_xyz(pd_uv, depth_value, Pdc3, depth_scale, d_in);
                 p.x = Pdc3[0];
                 p.y = Pdc3[1];
                 p.z = Pdc3[2];
-                //将深度摄像头坐标系的三维点转化到彩色摄像头坐标系下
+
                 transform_point_to_point(Pcc3, &ex_d_to_c, Pdc3);
-                // 从rgb图像中获取它的颜色
-                //将彩色摄像头坐标系下的深度三维点映射到二维平面上
+
                 xyz_to_uv(pc_uv, Pcc3, c_in);
                 auto x = pc_uv[0] + 0.6f;
                 auto y = pc_uv[1] + 0.6f;
@@ -150,7 +151,6 @@ int main(int argc, char *argv[])
                 p.g = color.at<cv::Vec3b>(y, x)[1];
                 p.r = color.at<cv::Vec3b>(y, x)[2];
 
-                // 把p加入到点云中
                 cloud->points.push_back(p);
             }
         }
@@ -161,7 +161,8 @@ int main(int argc, char *argv[])
 
         std::cout << cloud->size();
         viewer.showCloud(cloud);
-    }
 
+    }
+    */
     return 0;
 }

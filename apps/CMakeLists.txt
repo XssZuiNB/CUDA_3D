@@ -33,7 +33,7 @@ if(${CMAKE_VERSION} GREATER_EQUAL 3.18)
     set_target_properties(
         ${app}
         PROPERTIES
-        CUDA_ARCHITECTURES "52"
+        CUDA_ARCHITECTURES "52,70"
     )
 else()
     message("CMake version less than 3.18, set CUDA_ARCHITECTURES in compile options")

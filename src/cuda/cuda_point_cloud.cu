@@ -10,7 +10,6 @@
 #include <stdint.h>
 
 #include "cuda_point_cloud.cuh"
-#include "cuda_util.cuh"
 
 __global__ void kernel_cudaWarmUpGPU()
 {
