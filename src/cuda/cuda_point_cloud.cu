@@ -85,6 +85,10 @@ __device__ static void __xyz_to_color_uv(const float xyz[3], float uv[2],
     uv[1] = (xyz[1] * color_intrin.fy / xyz[2]) + color_intrin.cy;
 }
 
+__device__ static void __hole_filling(float *x)
+{
+}
+
 __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint32_t width,
                                          const uint32_t height, const uint16_t *depth_data,
                                          const uint8_t *color_data,

@@ -203,5 +203,4 @@ cv::Mat realsense_device::set_depth_to_cv_mat()
 
     return tmp;
 }
-
 } // namespace gca
