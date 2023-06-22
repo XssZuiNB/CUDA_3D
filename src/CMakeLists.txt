@@ -1,20 +1,4 @@
 add_subdirectory(cuda)
+add_subdirectory(devices)
 
-find_package(realsense2 REQUIRED)
-
-add_library(
-    gca_lib 
-    device.cpp
-    )
-
-target_compile_features(
-    gca_lib 
-    PRIVATE 
-    cxx_std_14
-    )
-
-target_include_directories(
-    gca_lib 
-    PUBLIC 
-    ../include
-    )
+find_package(OpenCV REQUIRED)

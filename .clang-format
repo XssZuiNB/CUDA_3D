@@ -13,4 +13,4 @@ PointerAlignment: Right
 # Maximum characters in one line
 ColumnLimit: 100
 # Line break between function definitions
-SeparateDefinitionBlocks : Always
+# SeparateDefinitionBlocks : Always
