@@ -43,7 +43,7 @@ void xyz_to_uv(int uv[2], const float xyz[3], const gca::intrinsics &color_in)
 int main(int argc, char *argv[])
 {
 
-    cudaWarmUpGPU();
+    cuda_warm_up_gpu(0);
     std::unique_ptr<gca::device> rs_cam(new gca::realsense_device());
     rs_cam->device_start();
 
@@ -54,7 +54,6 @@ int main(int argc, char *argv[])
 
     auto depth_scale = rs_cam->get_depth_scale();
 
-    // 定义点云类型
     typedef pcl::PointXYZRGBA PointT;
     typedef pcl::PointCloud<PointT> PointCloud;
     PointCloud::Ptr cloud(new PointCloud);

@@ -5,7 +5,7 @@
 
 namespace gca
 {
-class realsense_device : public gca::device
+class realsense_device final : public gca::device
 {
 public:
     realsense_device();

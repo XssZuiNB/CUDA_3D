@@ -24,11 +24,6 @@ enum frame_format
     Z16 // For depth
 };
 
-enum device_type
-{
-    REALSENSE,
-};
-
 struct point_t
 {
     float x, y, z;
