@@ -4,11 +4,10 @@
 #include <opencv4/opencv2/opencv.hpp>
 #include <string>
 
-#include "type.hpp"
+#include "camera/camera_param.hpp"
 
 namespace gca
 {
-
 class device
 {
 public:
@@ -49,6 +48,16 @@ public:
         m_device_started = true;
 
         return true;
+    }
+
+    uint32_t get_width()
+    {
+        return m_width;
+    }
+
+    uint32_t get_height()
+    {
+        return m_height;
     }
 
     float get_depth_scale()
@@ -133,14 +142,14 @@ public:
         return tmp.clone();
     }
 
-    const void *get_color_raw_data()
+    const uint8_t *get_color_raw_data()
     {
-        return m_color_raw_data;
+        return (uint8_t *)m_color_raw_data;
     }
 
-    const void *get_depth_raw_data()
+    const uint16_t *get_depth_raw_data()
     {
-        return m_depth_raw_data;
+        return (uint16_t *)m_depth_raw_data;
     }
 
 protected:

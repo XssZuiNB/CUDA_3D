@@ -5,30 +5,17 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "camera/camera_param.hpp"
+#include "cuda_container/cuda_container.hpp"
+#include "geometry/type.hpp"
+#include "util/cuda_util.cuh"
+
 #include "cuda_point_cloud.cuh"
-#include "cuda_util.cuh"
 
 __global__ void __kernel_cudaWarmUpGPU()
 {
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
     ind = ind + 1;
-}
-
-void cuda_print_devices()
-{
-    int nDevices;
-    cudaGetDeviceCount(&nDevices);
-    for (int i = 0; i < nDevices; i++)
-    {
-        cudaDeviceProp prop;
-        cudaGetDeviceProperties(&prop, i);
-        printf("Device Number: %d\n", i);
-        printf("  Device name: %s\n", prop.name);
-        printf("  Memory Clock Rate (KHz): %d\n", prop.memoryClockRate);
-        printf("  Memory Bus Width (bits): %d\n", prop.memoryBusWidth);
-        printf("  Peak Memory Bandwidth (GB/s): %f\n\n",
-               2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
-    }
 }
 
 cudaError_t cuda_warm_up_gpu(uint8_t device_num)
@@ -89,7 +76,7 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
     __syncthreads();
 
-    int depth_x = blockIdx.x * blockDim.x * 2 + threadIdx.x * 2;
+    int depth_x = blockIdx.x * blockDim.x + threadIdx.x;
     int depth_y = blockIdx.y * blockDim.y + threadIdx.y;
 
     int depth_pixel_index = depth_y * width + depth_x;
@@ -98,95 +85,80 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
     if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
     {
-        // Process two pixels per thread (loop unrolling)
-        for (int i = 0; i < 2; ++i)
+        // Extract depth value
+        const uint16_t depth_value = depth_data[depth_pixel_index];
+
+        if (depth_value == 0)
         {
-            // Calculate pixel indices for the two pixels
-            int current_pixel_index = depth_pixel_index + i;
-            int current_depth_x = depth_x + i;
+            point_set_out[depth_pixel_index] = {0};
+            return;
+        }
 
-            // Extract depth value
-            const uint16_t depth_value = depth_data[current_pixel_index];
+        // Calculate depth_uv and depth_xyz
+        float depth_uv[2] = {depth_x - 0.5f, depth_y - 0.5f};
+        float depth_xyz[3];
+        __depth_uv_to_xyz(depth_uv, depth_value, depth_xyz, depth_scale, depth_intrin_shared);
 
-            if (depth_value == 0)
-            {
-                point_set_out[current_pixel_index] = {0};
-                continue;
-            }
+        // Calculate color_xyz
+        float color_xyz[3];
+        __transform_point_to_point(color_xyz, depth_xyz, depth_to_color_extrin_shared);
 
-            // Calculate depth_uv and depth_xyz
-            float depth_uv[2] = {current_depth_x - 0.5f, depth_y - 0.5f};
-            float depth_xyz[3];
-            __depth_uv_to_xyz(depth_uv, depth_value, depth_xyz, depth_scale, depth_intrin_shared);
+        // Calculate color_uv
+        float color_uv[2];
+        __xyz_to_color_uv(color_xyz, color_uv, color_intrin_shared);
 
-            // Calculate color_xyz
-            float color_xyz[3];
-            __transform_point_to_point(color_xyz, depth_xyz, depth_to_color_extrin_shared);
+        const int target_x = static_cast<int>(color_uv[0] + 0.5f);
+        const int target_y = static_cast<int>(color_uv[1] + 0.5f);
 
-            // Calculate color_uv
-            float color_uv[2];
-            __xyz_to_color_uv(color_xyz, color_uv, color_intrin_shared);
+        if (target_x >= 0 && target_x < width && target_y >= 0 && target_y < height)
+        {
+            gca::point_t p;
+            p.x = depth_xyz[0];
+            p.y = -depth_xyz[1];
+            p.z = -depth_xyz[2];
 
-            const int target_x = static_cast<int>(color_uv[0] + 0.5f);
-            const int target_y = static_cast<int>(color_uv[1] + 0.5f);
+            const int color_index = 3 * (target_y * width + target_x);
+            p.b = color_data[color_index + 0];
+            p.g = color_data[color_index + 1];
+            p.r = color_data[color_index + 2];
 
-            if (target_x >= 0 && target_x < width && target_y >= 0 && target_y < height)
-            {
-                gca::point_t p;
-                p.x = depth_xyz[0];
-                p.y = -depth_xyz[1];
-                p.z = -depth_xyz[2];
-
-                const int color_index = 3 * (target_y * width + target_x);
-                p.b = color_data[color_index + 0];
-                p.g = color_data[color_index + 1];
-                p.r = color_data[color_index + 2];
-
-                point_set_out[current_pixel_index] = p;
-            }
+            point_set_out[depth_pixel_index] = p;
         }
     }
 }
 
-bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t height,
-                        const uint16_t *depth_data, const uint8_t *color_data,
-                        const gca::intrinsics &depth_intrin, const gca::intrinsics &color_intrin,
-                        const gca::extrinsics &depth_to_color_extrin, const float depth_scale)
+cudaError_t gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t height,
+                               const gca::cuda_depth_frame &depth_data,
+                               const gca::cuda_color_frame &color_data,
+                               const gca::intrinsics &depth_intrin,
+                               const gca::intrinsics &color_intrin,
+                               const gca::extrinsics &depth_to_color_extrin,
+                               const float depth_scale)
 {
     std::shared_ptr<gca::intrinsics> depth_intrin_ptr;
     std::shared_ptr<gca::intrinsics> color_intrin_ptr;
     std::shared_ptr<gca::extrinsics> depth_to_color_extrin_ptr;
-    std::shared_ptr<uint16_t> depth_frame_ptr;
-    std::shared_ptr<uint8_t> color_frame_ptr;
     std::shared_ptr<gca::point_t> result_ptr;
 
     auto depth_pixel_count = width * height;
-    auto depth_byte_size = sizeof(uint16_t) * depth_pixel_count;
-    auto color_byte_size = sizeof(uint8_t) * depth_pixel_count * 3;
+
     auto result_byte_size = sizeof(gca::point_t) * depth_pixel_count;
 
     if (!make_device_copy(depth_intrin_ptr, depth_intrin))
-        return false;
+        return cudaGetLastError();
     if (!make_device_copy(color_intrin_ptr, color_intrin))
-        return false;
+        return cudaGetLastError();
     if (!make_device_copy(depth_to_color_extrin_ptr, depth_to_color_extrin))
-        return false;
-
-    if (!alloc_dev(depth_frame_ptr, depth_pixel_count))
-        return false;
-    cudaMemcpy(depth_frame_ptr.get(), depth_data, depth_byte_size, cudaMemcpyHostToDevice);
-    if (!alloc_dev(color_frame_ptr, depth_pixel_count * 3))
-        return false;
-    cudaMemcpy(color_frame_ptr.get(), color_data, color_byte_size, cudaMemcpyHostToDevice);
+        return cudaGetLastError();
 
     if (!alloc_dev(result_ptr, result_byte_size))
-        return false;
+        return cudaGetLastError();
 
     dim3 threads(32, 32);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud<<<depth_blocks, threads>>>(
-        result_ptr.get(), width, height, depth_frame_ptr.get(), color_frame_ptr.get(),
+        result_ptr.get(), width, height, depth_data.data(), color_data.data(),
         depth_intrin_ptr.get(), color_intrin_ptr.get(), depth_to_color_extrin_ptr.get(),
         depth_scale);
 
@@ -194,5 +166,5 @@ bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t hei
 
     cudaMemcpy(result, result_ptr.get(), result_byte_size, cudaMemcpyDeviceToHost);
 
-    return true;
+    return cudaGetLastError();
 }

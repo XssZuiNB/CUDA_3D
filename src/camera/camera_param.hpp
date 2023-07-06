@@ -23,10 +23,4 @@ enum frame_format
     RGB8,
     Z16 // For depth
 };
-
-struct point_t
-{
-    float x, y, z;
-    uint8_t b, g, r;
-};
 } // namespace gca
