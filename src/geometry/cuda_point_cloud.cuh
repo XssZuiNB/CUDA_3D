@@ -12,10 +12,8 @@
 
 cudaError_t cuda_warm_up_gpu(uint8_t device_num);
 
-cudaError_t gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t height,
-                               const gca::cuda_depth_frame &depth_data,
-                               const gca::cuda_color_frame &color_data,
-                               const gca::intrinsics &depth_intrin,
-                               const gca::intrinsics &color_intrin,
-                               const gca::extrinsics &depth_to_color_extrin,
-                               const float depth_scale);
+bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t height,
+                        const gca::cuda_depth_frame &cuda_depth_container,
+                        const gca::cuda_color_frame &cuda_color_container,
+                        const gca::intrinsics &depth_intrin, const gca::intrinsics &color_intrin,
+                        const gca::extrinsics &depth_to_color_extrin, const float depth_scale);

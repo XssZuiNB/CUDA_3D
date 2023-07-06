@@ -142,14 +142,14 @@ public:
         return tmp.clone();
     }
 
-    const uint8_t *get_color_raw_data()
+    const void *get_color_raw_data()
     {
-        return (uint8_t *)m_color_raw_data;
+        return m_color_raw_data;
     }
 
-    const uint16_t *get_depth_raw_data()
+    const void *get_depth_raw_data()
     {
-        return (uint16_t *)m_depth_raw_data;
+        return m_depth_raw_data;
     }
 
 protected:

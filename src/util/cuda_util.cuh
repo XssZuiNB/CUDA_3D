@@ -27,7 +27,7 @@ template <typename T> static inline bool make_device_copy(std::shared_ptr<T> &cu
     return true;
 }
 
-template <typename T> static inline bool alloc_dev(std::shared_ptr<T> &cuda_ptr, int elements)
+template <typename T> static inline bool alloc_device(std::shared_ptr<T> &cuda_ptr, int elements)
 {
     T *d_data;
     auto err = cudaMalloc(&d_data, sizeof(T) * elements);

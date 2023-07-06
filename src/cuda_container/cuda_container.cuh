@@ -141,7 +141,7 @@ public:
     {
         auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_frame, frame, m_size, cudaMemcpyDefault);
+        cudaMemcpy(m_frame, frame, m_size * sizeof(T), cudaMemcpyDefault);
     }
 
     cuda_frame<T, N_CHANNEL>(const cuda_frame<T, N_CHANNEL> &other)
@@ -151,7 +151,7 @@ public:
     {
         auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_frame, other.m_frame, m_size, cudaMemcpyDefault);
+        cudaMemcpy(m_frame, other.m_frame, m_size * sizeof(T), cudaMemcpyDefault);
     }
 
     cuda_frame<T, N_CHANNEL>(cuda_frame<T, N_CHANNEL> &&other) noexcept
@@ -180,7 +180,7 @@ public:
             }
             m_width = other.m_width;
             m_height = other.m_height;
-            cudaMemcpy(m_frame, other.m_frame, m_size, cudaMemcpyDefault);
+            cudaMemcpy(m_frame, other.m_frame, m_size * sizeof(T), cudaMemcpyDefault);
         }
 
         return *this;
@@ -201,6 +201,7 @@ public:
 
     void upload(const T *frame, uint32_t width, uint32_t height)
     {
+
         auto new_size = width * height * N_CHANNEL;
         if (new_size != m_size)
         {
@@ -214,7 +215,7 @@ public:
         }
         m_width = width;
         m_height = height;
-        cudaMemcpy(m_frame, frame, m_size, cudaMemcpyDefault);
+        cudaMemcpy(m_frame, frame, m_size * sizeof(T), cudaMemcpyDefault);
     }
 
     const T *data() const

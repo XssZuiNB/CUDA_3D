@@ -15,7 +15,6 @@
 
 int main(int argc, char *argv[])
 {
-
     cuda_warm_up_gpu(0);
     std::unique_ptr<gca::device> rs_cam(new gca::realsense_device());
     rs_cam->device_start();
@@ -50,8 +49,8 @@ int main(int argc, char *argv[])
         gca::point_t points[640 * 480];
 
         auto start = std::chrono::steady_clock::now();
-        gpu_color.upload(color, 640, 480);
-        gpu_depth.upload(depth, 640, 480);
+        gpu_color.upload((uint8_t *)color, 640, 480);
+        gpu_depth.upload((uint16_t *)depth, 640, 480);
 
         if (!gpu_make_point_set(points, 640, 480, gpu_depth, gpu_color, c_in, d_in, ex_d_to_c,
                                 depth_scale))
