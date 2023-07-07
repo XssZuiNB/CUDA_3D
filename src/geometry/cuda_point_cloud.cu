@@ -12,21 +12,6 @@
 
 #include "cuda_point_cloud.cuh"
 
-__global__ void __kernel_cudaWarmUpGPU()
-{
-    int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    ind = ind + 1;
-}
-
-cudaError_t cuda_warm_up_gpu(uint8_t device_num)
-{
-    cudaSetDevice(device_num);
-
-    __kernel_cudaWarmUpGPU<<<1, 1>>>();
-    cudaDeviceSynchronize();
-    return cudaGetLastError();
-}
-
 __device__ static void __transform_point_to_point(float to_point[3], const float from_point[3],
                                                   const gca::extrinsics &extrin)
 {
@@ -58,9 +43,9 @@ __device__ static void __xyz_to_color_uv(const float xyz[3], float uv[2],
 __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint32_t width,
                                          const uint32_t height, const uint16_t *depth_data,
                                          const uint8_t *color_data,
-                                         const gca::intrinsics *depth_intrin,
-                                         const gca::intrinsics *color_intrin,
-                                         const gca::extrinsics *depth_to_color_extrin,
+                                         const gca::intrinsics &depth_intrin,
+                                         const gca::intrinsics &color_intrin,
+                                         const gca::extrinsics &depth_to_color_extrin,
                                          const float depth_scale)
 {
     __shared__ gca::intrinsics depth_intrin_shared;
@@ -69,9 +54,9 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
     if (threadIdx.x == 0 && threadIdx.y == 0)
     {
-        depth_intrin_shared = *depth_intrin;
-        color_intrin_shared = *color_intrin;
-        depth_to_color_extrin_shared = *depth_to_color_extrin;
+        depth_intrin_shared = depth_intrin;
+        color_intrin_shared = color_intrin;
+        depth_to_color_extrin_shared = depth_to_color_extrin;
     }
 
     __syncthreads();
@@ -127,39 +112,36 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
     }
 }
 
-bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t height,
-                        const gca::cuda_depth_frame &cuda_depth_container,
+bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_depth_container,
                         const gca::cuda_color_frame &cuda_color_container,
-                        const gca::intrinsics &depth_intrin, const gca::intrinsics &color_intrin,
-                        const gca::extrinsics &depth_to_color_extrin, const float depth_scale)
+                        const gca::cuda_camera_param &param)
 {
-    std::shared_ptr<gca::intrinsics> depth_intrin_ptr;
-    std::shared_ptr<gca::intrinsics> color_intrin_ptr;
-    std::shared_ptr<gca::extrinsics> depth_to_color_extrin_ptr;
-    std::shared_ptr<gca::point_t> result_ptr;
+    auto depth_intrin_ptr = param.get_depth_intrinsics_ptr();
+    auto color_intrin_ptr = param.get_color_intrinsics_ptr();
+    auto depth2color_extrin_ptr = param.get_depth2color_extrinsics_ptr();
+    auto width = param.get_width();
+    auto height = param.get_height();
+    auto depth_scale = param.get_depth_scale();
 
-    auto depth = cuda_depth_container.data();
-    auto color = cuda_color_container.data();
+    if (!depth_intrin_ptr || !color_intrin_ptr || !depth2color_extrin_ptr || !width || !height)
+        return false;
+
+    if (depth_scale - 0.0 < 0.000001)
+        return false;
+
     auto depth_pixel_count = width * height;
-
     auto result_byte_size = sizeof(gca::point_t) * depth_pixel_count;
 
-    if (!make_device_copy(depth_intrin_ptr, depth_intrin))
-        return false;
-    if (!make_device_copy(color_intrin_ptr, color_intrin))
-        return false;
-    if (!make_device_copy(depth_to_color_extrin_ptr, depth_to_color_extrin))
-        return false;
-
+    std::shared_ptr<gca::point_t> result_ptr;
     if (!alloc_device(result_ptr, result_byte_size))
         return false;
 
-    dim3 threads(16, 16);
+    dim3 threads(32, 32);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud<<<depth_blocks, threads>>>(
-        result_ptr.get(), width, height, depth, color, depth_intrin_ptr.get(),
-        color_intrin_ptr.get(), depth_to_color_extrin_ptr.get(), depth_scale);
+        result_ptr.get(), width, height, cuda_depth_container.data(), cuda_color_container.data(),
+        *depth_intrin_ptr, *color_intrin_ptr, *depth2color_extrin_ptr, depth_scale);
 
     if (cudaDeviceSynchronize() != cudaSuccess)
         return false;

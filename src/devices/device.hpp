@@ -50,17 +50,17 @@ public:
         return true;
     }
 
-    uint32_t get_width()
+    uint32_t get_width() const
     {
         return m_width;
     }
 
-    uint32_t get_height()
+    uint32_t get_height() const
     {
         return m_height;
     }
 
-    float get_depth_scale()
+    float get_depth_scale() const
     {
         if (!m_device_started)
         {
@@ -70,7 +70,7 @@ public:
         return m_depth_scale;
     }
 
-    const gca::intrinsics &get_color_intrinsics()
+    const gca::intrinsics &get_color_intrinsics() const
     {
         if (!m_device_started)
         {
@@ -80,7 +80,7 @@ public:
         return m_color_intrinsics;
     }
 
-    const gca::intrinsics &get_depth_intrinsics()
+    const gca::intrinsics &get_depth_intrinsics() const
     {
         if (!m_device_started)
         {
@@ -89,7 +89,7 @@ public:
         return m_depth_intrinsics;
     }
 
-    const gca::extrinsics &get_color_to_depth_extrinsics()
+    const gca::extrinsics &get_color_to_depth_extrinsics() const
     {
         if (!m_device_started)
         {
@@ -98,7 +98,7 @@ public:
         return m_color_to_depth_extrinsics;
     }
 
-    const gca::extrinsics &get_depth_to_color_extrinsics()
+    const gca::extrinsics &get_depth_to_color_extrinsics() const
     {
         if (!m_device_started)
         {

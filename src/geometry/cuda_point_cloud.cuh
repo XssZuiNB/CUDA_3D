@@ -10,10 +10,6 @@
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
 
-cudaError_t cuda_warm_up_gpu(uint8_t device_num);
-
-bool gpu_make_point_set(gca::point_t *result, uint32_t width, const uint32_t height,
-                        const gca::cuda_depth_frame &cuda_depth_container,
+bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_depth_container,
                         const gca::cuda_color_frame &cuda_color_container,
-                        const gca::intrinsics &depth_intrin, const gca::intrinsics &color_intrin,
-                        const gca::extrinsics &depth_to_color_extrin, const float depth_scale);
+                        const gca::cuda_camera_param &param);

@@ -38,6 +38,9 @@ file(
 
 file(
     GLOB UTIL_SRC
+    "util/*.cpp"
+    "util/*.hpp"    
+    "util/*.cu"
     "util/*.cuh"
 )
 

@@ -9,111 +9,6 @@
 
 namespace gca
 {
-template <typename T> class cuda_object
-{
-public:
-    cuda_object<T>()
-        : m_cuda_ptr(nullptr)
-    {
-    }
-
-    cuda_object<T>(const T &obj)
-    {
-        auto err = cudaMalloc(&m_cuda_ptr, sizeof(T));
-        check_cuda_error(err, __FILE__, __LINE__);
-        *m_cuda_ptr = obj;
-    }
-
-    cuda_object<T>(const T &&obj)
-    {
-        auto err = cudaMalloc(&m_cuda_ptr, sizeof(T));
-        check_cuda_error(err, __FILE__, __LINE__);
-        *m_cuda_ptr = obj;
-    }
-
-    cuda_object<T>(const cuda_object<T> &other)
-    {
-        auto err = cudaMalloc(&m_cuda_ptr, sizeof(T));
-        check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_cuda_ptr, other.m_cuda_ptr, sizeof(T), cudaMemcpyDefault);
-    }
-
-    cuda_object<T>(cuda_object<T> &&other) noexcept
-        : m_cuda_ptr(other.m_cuda_ptr)
-    {
-        other.m_cuda_ptr = nullptr;
-    }
-
-    cuda_object<T> &operator=(const cuda_object<T> &other)
-    {
-        if (this != &other)
-        {
-            upload(*other.m_cuda_ptr);
-        }
-    }
-
-    cuda_object<T> &operator=(cuda_object<T> &&other) noexcept
-    {
-        if (this != &other)
-        {
-            if (m_cuda_ptr)
-            {
-                cudaFree(m_cuda_ptr);
-            }
-            m_cuda_ptr = other.m_cuda_ptr;
-            other.m_cuda_ptr = nullptr;
-        }
-    }
-
-    cuda_object<T> &operator=(const T &obj)
-    {
-        upload(obj);
-    }
-
-    void upload(const T &obj)
-    {
-        if (!m_cuda_ptr)
-        {
-            auto err = cudaMalloc(&m_cuda_ptr, sizeof(T));
-            check_cuda_error(err, __FILE__, __LINE__);
-        }
-
-        *m_cuda_ptr = obj;
-    }
-
-    void download(T *dst)
-    {
-        *dst = *m_cuda_ptr;
-    }
-
-    const T *data() const
-    {
-        if (m_cuda_ptr)
-        {
-            return m_cuda_ptr;
-        }
-
-        return nullptr;
-    }
-
-    void clear()
-    {
-        if (m_cuda_ptr)
-        {
-            cudaFree(m_cuda_ptr);
-            m_cuda_ptr = nullptr;
-        }
-    }
-
-    ~cuda_object<T>()
-    {
-        clear();
-    }
-
-private:
-    T *m_cuda_ptr;
-};
-
 template <typename T, size_t N_CHANNEL> class cuda_frame
 {
 public:
@@ -121,7 +16,7 @@ public:
         : m_width(0)
         , m_height(0)
         , m_size(0)
-        , m_frame(nullptr)
+        , m_frame_ptr(nullptr)
     {
     }
 
@@ -130,7 +25,7 @@ public:
         , m_height(height)
         , m_size(width * height * N_CHANNEL)
     {
-        auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
+        auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
     }
 
@@ -139,9 +34,9 @@ public:
         , m_height(height)
         , m_size(width * height * N_CHANNEL)
     {
-        auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
+        auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_frame, frame, m_size * sizeof(T), cudaMemcpyDefault);
+        cudaMemcpy(m_frame_ptr, frame, m_size * sizeof(T), cudaMemcpyDefault);
     }
 
     cuda_frame<T, N_CHANNEL>(const cuda_frame<T, N_CHANNEL> &other)
@@ -149,18 +44,18 @@ public:
         , m_height(other.m_height)
         , m_size(other.m_size)
     {
-        auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
+        auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_frame, other.m_frame, m_size * sizeof(T), cudaMemcpyDefault);
+        cudaMemcpy(m_frame_ptr, other.m_frame_ptr, m_size * sizeof(T), cudaMemcpyDefault);
     }
 
     cuda_frame<T, N_CHANNEL>(cuda_frame<T, N_CHANNEL> &&other) noexcept
         : m_width(other.m_width)
         , m_height(other.m_height)
         , m_size(other.m_size)
-        , m_frame(other.m_frame)
+        , m_frame_ptr(other.m_frame_ptr)
     {
-        other.m_frame = nullptr;
+        other.m_frame_ptr = nullptr;
     }
 
     cuda_frame<T, N_CHANNEL> &operator=(const cuda_frame<T, N_CHANNEL> &other)
@@ -171,16 +66,16 @@ public:
             if (other_size != m_size)
             {
                 m_size = other.m_size;
-                if (m_frame)
+                if (m_frame_ptr)
                 {
-                    cudaFree(m_frame);
+                    cudaFree(m_frame_ptr);
                 }
-                auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
+                auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
                 check_cuda_error(err, __FILE__, __LINE__);
             }
             m_width = other.m_width;
             m_height = other.m_height;
-            cudaMemcpy(m_frame, other.m_frame, m_size * sizeof(T), cudaMemcpyDefault);
+            cudaMemcpy(m_frame_ptr, other.m_frame_ptr, m_size * sizeof(T), cudaMemcpyDefault);
         }
 
         return *this;
@@ -193,8 +88,8 @@ public:
             m_width = other.m_width;
             m_height = other.m_height;
             m_size = other.m_size;
-            m_frame = other.m_frame;
-            other.m_frame = nullptr;
+            m_frame_ptr = other.m_frame_ptr;
+            other.m_frame_ptr = nullptr;
         }
         return *this;
     }
@@ -206,29 +101,29 @@ public:
         if (new_size != m_size)
         {
             m_size = new_size;
-            if (m_frame)
+            if (m_frame_ptr)
             {
-                cudaFree(m_frame);
+                cudaFree(m_frame_ptr);
             }
-            auto err = cudaMalloc(&m_frame, sizeof(T) * m_size);
+            auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
             check_cuda_error(err, __FILE__, __LINE__);
         }
         m_width = width;
         m_height = height;
-        cudaMemcpy(m_frame, frame, m_size * sizeof(T), cudaMemcpyDefault);
+        cudaMemcpy(m_frame_ptr, frame, m_size * sizeof(T), cudaMemcpyDefault);
     }
 
     const T *data() const
     {
-        return m_frame;
+        return m_frame_ptr;
     }
 
     void clear()
     {
-        if (m_frame)
+        if (m_frame_ptr)
         {
-            cudaFree(m_frame);
-            m_frame = nullptr;
+            cudaFree(m_frame_ptr);
+            m_frame_ptr = nullptr;
         }
     }
 
@@ -241,6 +136,6 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     size_t m_size;
-    T *m_frame;
+    T *m_frame_ptr;
 };
 } // namespace gca
