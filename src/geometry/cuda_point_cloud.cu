@@ -12,8 +12,9 @@
 
 #include "cuda_point_cloud.cuh"
 
-__device__ static void __transform_point_to_point(float to_point[3], const float from_point[3],
-                                                  const gca::extrinsics &extrin)
+__device__ static inline void __transform_point_to_point(float to_point[3],
+                                                         const float from_point[3],
+                                                         const gca::extrinsics &extrin)
 {
     to_point[0] = extrin.rotation[0] * from_point[0] + extrin.rotation[3] * from_point[1] +
                   extrin.rotation[6] * from_point[2] + extrin.translation[0];
@@ -23,9 +24,9 @@ __device__ static void __transform_point_to_point(float to_point[3], const float
                   extrin.rotation[8] * from_point[2] + extrin.translation[2];
 }
 
-__device__ static void __depth_uv_to_xyz(const float uv[2], const float depth, float xyz[3],
-                                         const float depth_scale,
-                                         const gca::intrinsics &depth_intrin)
+__device__ static inline void __depth_uv_to_xyz(const float uv[2], const float depth, float xyz[3],
+                                                const float depth_scale,
+                                                const gca::intrinsics &depth_intrin)
 {
     auto z = depth * depth_scale;
     xyz[2] = z;
@@ -33,8 +34,8 @@ __device__ static void __depth_uv_to_xyz(const float uv[2], const float depth, f
     xyz[1] = (uv[1] - depth_intrin.cy) * z / depth_intrin.fy;
 }
 
-__device__ static void __xyz_to_color_uv(const float xyz[3], float uv[2],
-                                         const gca::intrinsics &color_intrin)
+__device__ static inline void __xyz_to_color_uv(const float xyz[3], float uv[2],
+                                                const gca::intrinsics &color_intrin)
 {
     uv[0] = (xyz[0] * color_intrin.fx / xyz[2]) + color_intrin.cx;
     uv[1] = (xyz[1] * color_intrin.fy / xyz[2]) + color_intrin.cy;
@@ -126,7 +127,7 @@ bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_
     if (!depth_intrin_ptr || !color_intrin_ptr || !depth2color_extrin_ptr || !width || !height)
         return false;
 
-    if (depth_scale - 0.0 < 0.000001)
+    if (depth_scale - 0.0 < 0.0001)
         return false;
 
     auto depth_pixel_count = width * height;
@@ -136,7 +137,7 @@ bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_
     if (!alloc_device(result_ptr, result_byte_size))
         return false;
 
-    dim3 threads(32, 32);
+    dim3 threads(16, 16);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud<<<depth_blocks, threads>>>(

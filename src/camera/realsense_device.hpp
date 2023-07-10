@@ -1,6 +1,6 @@
 #pragma once
 
-#include "device.hpp"
+#include "camera_device.hpp"
 #include <librealsense2/rs.hpp>
 
 namespace gca

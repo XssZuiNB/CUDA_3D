@@ -36,7 +36,7 @@ public:
     {
         auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_frame_ptr, frame, m_size * sizeof(T), cudaMemcpyDefault);
+        cudaMemcpy(m_frame_ptr, frame, sizeof(T) * m_size, cudaMemcpyDefault);
     }
 
     cuda_frame<T, N_CHANNEL>(const cuda_frame<T, N_CHANNEL> &other)
@@ -46,7 +46,7 @@ public:
     {
         auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
-        cudaMemcpy(m_frame_ptr, other.m_frame_ptr, m_size * sizeof(T), cudaMemcpyDefault);
+        cudaMemcpy(m_frame_ptr, other.m_frame_ptr, sizeof(T) * m_size, cudaMemcpyDefault);
     }
 
     cuda_frame<T, N_CHANNEL>(cuda_frame<T, N_CHANNEL> &&other) noexcept
@@ -65,7 +65,7 @@ public:
             auto other_size = other.m_size;
             if (other_size != m_size)
             {
-                m_size = other.m_size;
+                m_size = other_size;
                 if (m_frame_ptr)
                 {
                     cudaFree(m_frame_ptr);
@@ -75,7 +75,7 @@ public:
             }
             m_width = other.m_width;
             m_height = other.m_height;
-            cudaMemcpy(m_frame_ptr, other.m_frame_ptr, m_size * sizeof(T), cudaMemcpyDefault);
+            cudaMemcpy(m_frame_ptr, other.m_frame_ptr, sizeof(T) * m_size, cudaMemcpyDefault);
         }
 
         return *this;
@@ -85,6 +85,11 @@ public:
     {
         if (this != &other)
         {
+            if (m_frame_ptr)
+            {
+                cudaFree(m_frame_ptr);
+            }
+
             m_width = other.m_width;
             m_height = other.m_height;
             m_size = other.m_size;
@@ -110,7 +115,7 @@ public:
         }
         m_width = width;
         m_height = height;
-        cudaMemcpy(m_frame_ptr, frame, m_size * sizeof(T), cudaMemcpyDefault);
+        cudaMemcpy(m_frame_ptr, frame, sizeof(T) * m_size, cudaMemcpyDefault);
     }
 
     const T *data() const

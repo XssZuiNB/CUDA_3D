@@ -2,8 +2,8 @@
 
 #include <memory>
 
+#include "camera/camera_device.hpp"
 #include "camera/camera_param.hpp"
-#include "devices/device.hpp"
 
 namespace gca
 {

@@ -16,12 +16,6 @@ file(
 )
 
 file(
-    GLOB DEVICES_SRC
-    "devices/*.cpp"
-    "devices/*.hpp"
-)
-
-file(
     GLOB CUDA_CONTAINER_SRC
     "cuda_container/*.cuh"
     "cuda_container/*.hpp"
@@ -37,6 +31,12 @@ file(
 )
 
 file(
+    GLOB MOVEMENT_DETECTION_SRC
+    "movement_detection/*.cpp"
+    "movement_detection/*.hpp"
+)
+
+file(
     GLOB UTIL_SRC
     "util/*.cpp"
     "util/*.hpp"    
@@ -48,9 +48,9 @@ add_library(
     gca_lib 
     SHARED
     ${CAMERA_SRC}
-    ${DEVICES_SRC}
     ${CUDA_CONTAINER_SRC}
     ${GEOMETRY_SRC}
+    ${MOVEMENT_DETECTION_SRC}
     ${UTIL_SRC}
     )
 

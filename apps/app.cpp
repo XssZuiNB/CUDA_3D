@@ -8,8 +8,8 @@
 #include <pcl/point_types.h>
 #include <pcl/visualization/cloud_viewer.h>
 
+#include "camera/realsense_device.hpp"
 #include "cuda_container/cuda_container.hpp"
-#include "devices/realsense_device.hpp"
 #include "geometry/cuda_point_cloud.cuh"
 #include "geometry/type.hpp"
 #include "util/gpu_check.hpp"
@@ -27,11 +27,7 @@ int main(int argc, char *argv[])
     auto ex_c_to_d = rs_cam.get_color_to_depth_extrinsics();
 
     gca::cuda_camera_param cu_param(rs_cam);
-    /*
-    cu_param.set(d_in, gca::depth_intrinsics);
-    cu_param.set(c_in, gca::color_intrinsics);
-    cu_param.set(ex_d_to_c, gca::depth2color_extrinsics);
-*/
+
     auto depth_scale = rs_cam.get_depth_scale();
 
     typedef pcl::PointXYZRGBA PointT;
@@ -40,15 +36,12 @@ int main(int argc, char *argv[])
 
     pcl::visualization::CloudViewer viewer("viewer");
 
-    // auto gpu_color_intrin = gca::make_cuda_obj(c_in);
-    // auto gpu_depth_intrin = gca::make_cuda_obj(d_in);
-    // auto gpu_depth_to_color_extrin = gca::make_cuda_obj(ex_d_to_c);
-
     gca::cuda_color_frame gpu_color(rs_cam.get_width(), rs_cam.get_height());
     gca::cuda_depth_frame gpu_depth(rs_cam.get_width(), rs_cam.get_height());
 
     while (true)
     {
+        auto start = std::chrono::steady_clock::now();
         cloud->clear();
         rs_cam.receive_data();
 
@@ -57,7 +50,6 @@ int main(int argc, char *argv[])
 
         gca::point_t points[640 * 480];
 
-        auto start = std::chrono::steady_clock::now();
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
 
@@ -84,9 +76,9 @@ int main(int argc, char *argv[])
             }
         }
 
-        std::cout << "Time in milliseconds: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                  << "ms" << std::endl;
+        std::cout << "Time in microseconds: "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+                  << "us" << std::endl;
         std::cout << cloud->size() << std::endl;
         std::cout << "__________________________________________________" << std::endl;
 
