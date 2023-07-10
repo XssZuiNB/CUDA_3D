@@ -76,7 +76,7 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
         if (depth_value == 0)
         {
-            point_set_out[depth_pixel_index] = {0};
+            point_set_out[depth_pixel_index].if_valid = false;
             return;
         }
 
@@ -107,6 +107,8 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
             p.b = color_data[color_index + 0];
             p.g = color_data[color_index + 1];
             p.r = color_data[color_index + 2];
+
+            p.if_valid = true;
 
             point_set_out[depth_pixel_index] = p;
         }

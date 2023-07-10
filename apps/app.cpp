@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 
         for (auto point : points)
         {
-            if (point.z != 0)
+            if (point.if_valid)
             {
                 PointT p;
                 p.x = point.x;
@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
         std::cout << "__________________________________________________" << std::endl;
 
         viewer.showCloud(cloud);
-        break;
     }
     while (!viewer.wasStopped())
     {
