@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
     gca::cuda_camera_param cu_param(rs_cam);
 
     auto depth_scale = rs_cam.get_depth_scale();
+    std::cout << depth_scale << std::endl;
 
     typedef pcl::PointXYZRGBA PointT;
     typedef pcl::PointCloud<PointT> PointCloud;
@@ -54,7 +55,7 @@ int main(int argc, char *argv[])
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
 
-        if (!gpu_make_point_set(points, gpu_depth, gpu_color, cu_param))
+        if (!gpu_make_point_set(points, gpu_depth, gpu_color, cu_param, 0.5, 6.5))
         {
             std::cout << "fault" << std::endl;
             return 1;
@@ -68,8 +69,8 @@ int main(int argc, char *argv[])
             {
                 PointT p;
                 p.x = point.x;
-                p.y = point.y;
-                p.z = point.z;
+                p.y = -point.y;
+                p.z = -point.z;
                 p.r = point.r;
                 p.g = point.g;
                 p.b = point.b;

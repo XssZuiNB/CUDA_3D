@@ -17,9 +17,9 @@ file(
 
 file(
     GLOB CUDA_CONTAINER_SRC
-    "cuda_container/*.cuh"
     "cuda_container/*.hpp"
     "cuda_container/*.cu"
+    "cuda_container/*.cuh"
 )
 
 file(

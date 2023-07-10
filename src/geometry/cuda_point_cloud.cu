@@ -25,10 +25,9 @@ __device__ static inline void __transform_point_to_point(float to_point[3],
 }
 
 __device__ static inline void __depth_uv_to_xyz(const float uv[2], const float depth, float xyz[3],
-                                                const float depth_scale,
                                                 const gca::intrinsics &depth_intrin)
 {
-    auto z = depth * depth_scale;
+    auto z = depth;
     xyz[2] = z;
     xyz[0] = (uv[0] - depth_intrin.cx) * z / depth_intrin.fx;
     xyz[1] = (uv[1] - depth_intrin.cy) * z / depth_intrin.fy;
@@ -41,13 +40,11 @@ __device__ static inline void __xyz_to_color_uv(const float xyz[3], float uv[2],
     uv[1] = (xyz[1] * color_intrin.fy / xyz[2]) + color_intrin.cy;
 }
 
-__global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint32_t width,
-                                         const uint32_t height, const uint16_t *depth_data,
-                                         const uint8_t *color_data,
-                                         const gca::intrinsics &depth_intrin,
-                                         const gca::intrinsics &color_intrin,
-                                         const gca::extrinsics &depth_to_color_extrin,
-                                         const float depth_scale)
+__global__ void __kernel_make_pointcloud(
+    gca::point_t *point_set_out, const uint32_t width, const uint32_t height,
+    const uint16_t *depth_data, const uint8_t *color_data, const gca::intrinsics &depth_intrin,
+    const gca::intrinsics &color_intrin, const gca::extrinsics &depth_to_color_extrin,
+    const float depth_scale, float threshold_min, float threshold_max)
 {
     __shared__ gca::intrinsics depth_intrin_shared;
     __shared__ gca::intrinsics color_intrin_shared;
@@ -72,9 +69,9 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
     if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
     {
         // Extract depth value
-        const uint16_t depth_value = depth_data[depth_pixel_index];
+        const auto depth_value = depth_data[depth_pixel_index] * depth_scale;
 
-        if (depth_value == 0)
+        if (depth_value == 0 || depth_value < threshold_min || depth_value > threshold_max)
         {
             point_set_out[depth_pixel_index].if_valid = false;
             return;
@@ -83,7 +80,7 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
         // Calculate depth_uv and depth_xyz
         float depth_uv[2] = {depth_x - 0.5f, depth_y - 0.5f};
         float depth_xyz[3];
-        __depth_uv_to_xyz(depth_uv, depth_value, depth_xyz, depth_scale, depth_intrin_shared);
+        __depth_uv_to_xyz(depth_uv, depth_value, depth_xyz, depth_intrin_shared);
 
         // Calculate color_xyz
         float color_xyz[3];
@@ -100,8 +97,8 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
         {
             gca::point_t p;
             p.x = depth_xyz[0];
-            p.y = -depth_xyz[1];
-            p.z = -depth_xyz[2];
+            p.y = depth_xyz[1];
+            p.z = depth_xyz[2];
 
             const int color_index = 3 * (target_y * width + target_x);
             p.b = color_data[color_index + 0];
@@ -117,7 +114,8 @@ __global__ void __kernel_make_pointcloud(gca::point_t *point_set_out, const uint
 
 bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_depth_container,
                         const gca::cuda_color_frame &cuda_color_container,
-                        const gca::cuda_camera_param &param)
+                        const gca::cuda_camera_param &param, float threshold_min_in_meter,
+                        float threshold_max_in_meter)
 {
     auto depth_intrin_ptr = param.get_depth_intrinsics_ptr();
     auto color_intrin_ptr = param.get_color_intrinsics_ptr();
@@ -144,7 +142,8 @@ bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_
 
     __kernel_make_pointcloud<<<depth_blocks, threads>>>(
         result_ptr.get(), width, height, cuda_depth_container.data(), cuda_color_container.data(),
-        *depth_intrin_ptr, *color_intrin_ptr, *depth2color_extrin_ptr, depth_scale);
+        *depth_intrin_ptr, *color_intrin_ptr, *depth2color_extrin_ptr, depth_scale,
+        threshold_min_in_meter, threshold_max_in_meter);
 
     if (cudaDeviceSynchronize() != cudaSuccess)
         return false;
