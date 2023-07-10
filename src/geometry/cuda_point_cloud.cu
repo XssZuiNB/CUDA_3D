@@ -137,7 +137,7 @@ bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_
     if (!alloc_device(result_ptr, result_byte_size))
         return false;
 
-    dim3 threads(16, 16);
+    dim3 threads(32, 32);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud<<<depth_blocks, threads>>>(
@@ -147,7 +147,7 @@ bool gpu_make_point_set(gca::point_t *result, const gca::cuda_depth_frame &cuda_
     if (cudaDeviceSynchronize() != cudaSuccess)
         return false;
 
-    cudaMemcpy(result, result_ptr.get(), result_byte_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(result, result_ptr.get(), result_byte_size, cudaMemcpyDefault);
 
     return true;
 }

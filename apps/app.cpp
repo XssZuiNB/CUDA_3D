@@ -16,6 +16,7 @@
 
 int main(int argc, char *argv[])
 {
+    cuda_print_devices();
     cuda_warm_up_gpu(0);
     auto rs_cam = gca::realsense_device();
     if (!rs_cam.device_start())
@@ -41,10 +42,10 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        auto start = std::chrono::steady_clock::now();
+
         cloud->clear();
         rs_cam.receive_data();
-
+        auto start = std::chrono::steady_clock::now();
         auto color = rs_cam.get_color_raw_data();
         auto depth = rs_cam.get_depth_raw_data();
 
@@ -83,6 +84,7 @@ int main(int argc, char *argv[])
         std::cout << "__________________________________________________" << std::endl;
 
         viewer.showCloud(cloud);
+        break;
     }
     while (!viewer.wasStopped())
     {

@@ -37,6 +37,7 @@ public:
         auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
         cudaMemcpy(m_frame_ptr, frame, sizeof(T) * m_size, cudaMemcpyDefault);
+        // cudaDeviceSynchronize();
     }
 
     cuda_frame<T, N_CHANNEL>(const cuda_frame<T, N_CHANNEL> &other)
@@ -47,6 +48,7 @@ public:
         auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
         check_cuda_error(err, __FILE__, __LINE__);
         cudaMemcpy(m_frame_ptr, other.m_frame_ptr, sizeof(T) * m_size, cudaMemcpyDefault);
+        // cudaDeviceSynchronize();
     }
 
     cuda_frame<T, N_CHANNEL>(cuda_frame<T, N_CHANNEL> &&other) noexcept
@@ -76,6 +78,7 @@ public:
             m_width = other.m_width;
             m_height = other.m_height;
             cudaMemcpy(m_frame_ptr, other.m_frame_ptr, sizeof(T) * m_size, cudaMemcpyDefault);
+            // cudaDeviceSynchronize();
         }
 
         return *this;

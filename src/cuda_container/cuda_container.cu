@@ -85,6 +85,11 @@ cuda_color_frame &cuda_color_frame::operator=(cuda_color_frame &&other) noexcept
 {
     if (this != &other)
     {
+        if (__m_impl)
+        {
+            delete __m_impl;
+        }
+
         __m_impl = other.__m_impl;
         other.__m_impl = nullptr;
     }
@@ -194,6 +199,11 @@ cuda_depth_frame &cuda_depth_frame::operator=(cuda_depth_frame &&other) noexcept
 {
     if (this != &other)
     {
+        if (__m_impl)
+        {
+            delete __m_impl;
+        }
+
         __m_impl = other.__m_impl;
         other.__m_impl = nullptr;
     }
@@ -284,7 +294,6 @@ cuda_camera_param::cuda_camera_param(const gca::intrinsics &depth_intrin,
                cudaMemcpyDefault);
     cudaMemcpy(m_color2depth_extrin_ptr, &color2depth_extrin, sizeof(gca::extrinsics),
                cudaMemcpyDefault);
-    cudaDeviceSynchronize();
 }
 
 cuda_camera_param::cuda_camera_param(const cuda_camera_param &other)
@@ -309,7 +318,6 @@ cuda_camera_param::cuda_camera_param(const cuda_camera_param &other)
                cudaMemcpyDefault);
     cudaMemcpy(m_color2depth_extrin_ptr, other.m_color2depth_extrin_ptr, sizeof(gca::extrinsics),
                cudaMemcpyDefault);
-    cudaDeviceSynchronize();
 }
 cuda_camera_param::cuda_camera_param(cuda_camera_param &&other) noexcept
     : m_depth_intrin_ptr(other.m_depth_intrin_ptr)
@@ -328,53 +336,78 @@ cuda_camera_param::cuda_camera_param(cuda_camera_param &&other) noexcept
 
 cuda_camera_param &cuda_camera_param::operator=(const cuda_camera_param &other)
 {
-    if (!m_depth_intrin_ptr)
+    if (&other != this)
     {
-        auto err = cudaMalloc(&m_depth_intrin_ptr, sizeof(gca::intrinsics));
-        check_cuda_error(err, __FILE__, __LINE__);
-    }
-    if (!m_color_intrin_ptr)
-    {
-        auto err = cudaMalloc(&m_color_intrin_ptr, sizeof(gca::intrinsics));
-        check_cuda_error(err, __FILE__, __LINE__);
-    }
-    if (!m_depth2color_extrin_ptr)
-    {
-        auto err = cudaMalloc(&m_depth2color_extrin_ptr, sizeof(gca::extrinsics));
-        check_cuda_error(err, __FILE__, __LINE__);
-    }
-    if (!m_color2depth_extrin_ptr)
-    {
-        auto err = cudaMalloc(&m_color2depth_extrin_ptr, sizeof(gca::extrinsics));
-        check_cuda_error(err, __FILE__, __LINE__);
-    }
+        if (!m_depth_intrin_ptr)
+        {
+            auto err = cudaMalloc(&m_depth_intrin_ptr, sizeof(gca::intrinsics));
+            check_cuda_error(err, __FILE__, __LINE__);
+        }
+        if (!m_color_intrin_ptr)
+        {
+            auto err = cudaMalloc(&m_color_intrin_ptr, sizeof(gca::intrinsics));
+            check_cuda_error(err, __FILE__, __LINE__);
+        }
+        if (!m_depth2color_extrin_ptr)
+        {
+            auto err = cudaMalloc(&m_depth2color_extrin_ptr, sizeof(gca::extrinsics));
+            check_cuda_error(err, __FILE__, __LINE__);
+        }
+        if (!m_color2depth_extrin_ptr)
+        {
+            auto err = cudaMalloc(&m_color2depth_extrin_ptr, sizeof(gca::extrinsics));
+            check_cuda_error(err, __FILE__, __LINE__);
+        }
 
-    cudaMemcpy(m_depth_intrin_ptr, other.m_depth_intrin_ptr, sizeof(gca::intrinsics),
-               cudaMemcpyDefault);
-    cudaMemcpy(m_color_intrin_ptr, other.m_color_intrin_ptr, sizeof(gca::intrinsics),
-               cudaMemcpyDefault);
-    cudaMemcpy(m_depth2color_extrin_ptr, other.m_depth2color_extrin_ptr, sizeof(gca::extrinsics),
-               cudaMemcpyDefault);
-    cudaMemcpy(m_color2depth_extrin_ptr, other.m_color2depth_extrin_ptr, sizeof(gca::extrinsics),
-               cudaMemcpyDefault);
-    cudaDeviceSynchronize();
+        cudaMemcpy(m_depth_intrin_ptr, other.m_depth_intrin_ptr, sizeof(gca::intrinsics),
+                   cudaMemcpyDefault);
+        cudaMemcpy(m_color_intrin_ptr, other.m_color_intrin_ptr, sizeof(gca::intrinsics),
+                   cudaMemcpyDefault);
+        cudaMemcpy(m_depth2color_extrin_ptr, other.m_depth2color_extrin_ptr,
+                   sizeof(gca::extrinsics), cudaMemcpyDefault);
+        cudaMemcpy(m_color2depth_extrin_ptr, other.m_color2depth_extrin_ptr,
+                   sizeof(gca::extrinsics), cudaMemcpyDefault);
+        m_width = other.m_width;
+        m_height = other.m_height;
+        m_depth_scale = other.m_depth_scale;
+    }
 
     return *this;
 }
 cuda_camera_param &cuda_camera_param::operator=(cuda_camera_param &&other) noexcept
 {
-    m_depth_intrin_ptr = other.m_depth_intrin_ptr;
-    m_color_intrin_ptr = other.m_color_intrin_ptr;
-    m_depth2color_extrin_ptr = other.m_depth2color_extrin_ptr;
-    m_color2depth_extrin_ptr = other.m_color2depth_extrin_ptr;
-    m_width = other.m_width;
-    m_height = other.m_height;
-    m_depth_scale = other.m_depth_scale;
+    if (&other != this)
+    {
+        if (m_depth_intrin_ptr)
+        {
+            cudaFree(m_depth_intrin_ptr);
+        }
+        if (m_color_intrin_ptr)
+        {
+            cudaFree(m_color_intrin_ptr);
+        }
+        if (m_depth2color_extrin_ptr)
+        {
+            cudaFree(m_depth2color_extrin_ptr);
+        }
+        if (m_color2depth_extrin_ptr)
+        {
+            cudaFree(m_color2depth_extrin_ptr);
+        }
 
-    other.m_depth_intrin_ptr = nullptr;
-    other.m_color_intrin_ptr = nullptr;
-    other.m_depth2color_extrin_ptr = nullptr;
-    other.m_color2depth_extrin_ptr = nullptr;
+        m_depth_intrin_ptr = other.m_depth_intrin_ptr;
+        m_color_intrin_ptr = other.m_color_intrin_ptr;
+        m_depth2color_extrin_ptr = other.m_depth2color_extrin_ptr;
+        m_color2depth_extrin_ptr = other.m_color2depth_extrin_ptr;
+        m_width = other.m_width;
+        m_height = other.m_height;
+        m_depth_scale = other.m_depth_scale;
+
+        other.m_depth_intrin_ptr = nullptr;
+        other.m_color_intrin_ptr = nullptr;
+        other.m_depth2color_extrin_ptr = nullptr;
+        other.m_color2depth_extrin_ptr = nullptr;
+    }
 
     return *this;
 }
@@ -485,7 +518,7 @@ float cuda_camera_param::get_depth_scale() const
     return m_depth_scale;
 }
 
-void cuda_camera_param::clear()
+cuda_camera_param::~cuda_camera_param()
 {
     if (m_depth_intrin_ptr)
     {
@@ -510,10 +543,5 @@ void cuda_camera_param::clear()
         cudaFree(m_color2depth_extrin_ptr);
     }
     m_color2depth_extrin_ptr = nullptr;
-}
-
-cuda_camera_param::~cuda_camera_param()
-{
-    clear();
 }
 } // namespace gca
