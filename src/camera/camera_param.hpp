@@ -24,9 +24,14 @@ enum frame_format
     Z16 // For depth
 };
 
-struct point_t
+enum param_type
 {
-    float x, y, z;
-    uint8_t b, g, r;
+    depth_intrinsics,
+    color_intrinsics,
+    depth2color_extrinsics,
+    color2depth_extrinsics,
+    width,
+    height,
+    depth_scale
 };
 } // namespace gca
