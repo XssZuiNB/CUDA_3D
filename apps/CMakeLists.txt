@@ -24,4 +24,3 @@ target_link_libraries(
     gca_lib
     ${PCL_LIBRARIES}
 )
-
