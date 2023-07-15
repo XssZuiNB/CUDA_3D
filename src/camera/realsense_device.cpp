@@ -1,7 +1,7 @@
-#include "realsense_device.hpp"
-
 #include <cstring>
 #include <iostream>
+
+#include "camera/realsense_device.hpp"
 
 namespace gca
 {

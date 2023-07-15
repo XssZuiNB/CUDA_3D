@@ -4,13 +4,15 @@
 #include <opencv4/opencv2/opencv.hpp>
 #include <thread>
 
+#include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/visualization/cloud_viewer.h>
 
 #include "camera/realsense_device.hpp"
 #include "cuda_container/cuda_container.hpp"
-#include "geometry/cuda_point_cloud.cuh"
+#include "geometry/cuda_point_cloud_factory.cuh"
+#include "geometry/point_cloud.hpp"
 #include "geometry/type.hpp"
 #include "util/gpu_check.hpp"
 
@@ -30,7 +32,6 @@ int main(int argc, char *argv[])
     gca::cuda_camera_param cu_param(rs_cam);
 
     auto depth_scale = rs_cam.get_depth_scale();
-    std::cout << depth_scale << std::endl;
 
     typedef pcl::PointXYZRGBA PointT;
     typedef pcl::PointCloud<PointT> PointCloud;
@@ -46,31 +47,40 @@ int main(int argc, char *argv[])
 
         cloud->clear();
         rs_cam.receive_data();
-        auto start = std::chrono::steady_clock::now();
+
         auto color = rs_cam.get_color_raw_data();
         auto depth = rs_cam.get_depth_raw_data();
 
-        gca::point_t points[640 * 480];
-
+        std::vector<gca::point_t> points(640 * 480);
+        auto start = std::chrono::steady_clock::now();
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
+        /*
+                if (!cuda_make_point_cloud(points, gpu_depth, gpu_color, cu_param))
+                {
+                    std::cout << "fault" << std::endl;
+                    return 1;
+                }
+        */
 
-        if (!gpu_make_point_set(points, gpu_depth, gpu_color, cu_param, 0.5, 6.5))
-        {
-            std::cout << "fault" << std::endl;
-            return 1;
-        }
+        auto pc = gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.5, 10.0);
 
+        auto pc_downsampling = pc->voxel_grid_down_sample(0.03f);
         auto end = std::chrono::steady_clock::now();
-
+        std::cout << "GPU Voxel : " << pc_downsampling->m_points.size() << std::endl;
+        pc_downsampling->download(points);
+        auto test = pc->min_bound();
+        std::cout << "Minbound: " << test.x << std::endl;
+        std::cout << "Minbound: " << test.y << std::endl;
+        std::cout << "Minbound: " << test.z << std::endl;
         for (auto point : points)
         {
-            if (point.if_valid)
+            // if (point.property != gca::point_property::invalid)
             {
                 PointT p;
-                p.x = point.x;
-                p.y = -point.y;
-                p.z = -point.z;
+                p.x = point.coordinates.x;
+                p.y = point.coordinates.y;
+                p.z = point.coordinates.z;
                 p.r = point.r;
                 p.g = point.g;
                 p.b = point.b;
@@ -78,13 +88,25 @@ int main(int argc, char *argv[])
             }
         }
 
+        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
+            new pcl::PointCloud<pcl::PointXYZRGBA>);
+        pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+        sor.setInputCloud(cloud);
+        sor.setLeafSize(0.05f, 0.05f, 0.05f);
+        sor.filter(*cloud_filtered);
+
+        viewer.showCloud(cloud);
+
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;
-        std::cout << cloud->size() << std::endl;
-        std::cout << "__________________________________________________" << std::endl;
+        std::cout << "Time in milliseconds: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
 
-        viewer.showCloud(cloud);
+        std::cout << "Points number: " << cloud_filtered->size() << std::endl;
+        // std::cout << cloud_filtered->size() << std::endl;
+        std::cout << "__________________________________________________" << std::endl;
     }
     while (!viewer.wasStopped())
     {

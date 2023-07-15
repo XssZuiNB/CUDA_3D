@@ -1,11 +1,11 @@
 #pragma once
 
+#include "camera/camera_param.hpp"
+#include "util/cuda_util.cuh"
+
 #include <cuda_runtime_api.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
-
-#include "camera/camera_param.hpp"
-#include "util/cuda_util.cuh"
 
 namespace gca
 {

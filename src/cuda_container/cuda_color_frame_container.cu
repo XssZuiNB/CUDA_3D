@@ -1,8 +1,8 @@
-#include <cuda_runtime_api.h>
-
-#include "cuda_container.cuh"
-#include "cuda_container.hpp"
+#include "cuda_container/cuda_container.cuh"
+#include "cuda_container/cuda_container.hpp"
 #include "util/cuda_util.cuh"
+
+#include <cuda_runtime_api.h>
 
 namespace gca
 {

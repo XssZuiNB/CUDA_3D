@@ -1,9 +1,9 @@
 #pragma once
 
-#include <memory>
-
 #include "camera/camera_device.hpp"
 #include "camera/camera_param.hpp"
+
+#include <memory>
 
 namespace gca
 {

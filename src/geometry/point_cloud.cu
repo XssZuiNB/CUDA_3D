@@ -1,0 +1,113 @@
+#include <cuda_runtime_api.h>
+#include <memory>
+#include <thrust/copy.h>
+#include <thrust/device_vector.h>
+#include <vector>
+
+#include "geometry/cuda_point_cloud_factory.cuh"
+#include "geometry/point_cloud.hpp"
+
+namespace gca
+{
+point_cloud::point_cloud(size_t n_points)
+    : m_points(n_points)
+{
+}
+
+point_cloud::point_cloud(const point_cloud &other)
+    : m_points(other.m_points)
+{
+}
+
+point_cloud &point_cloud::operator=(const point_cloud &other)
+{
+    m_points = other.m_points;
+    return *this;
+}
+
+std::vector<point_t> point_cloud::download() const
+{
+    std::vector<point_t> temp;
+    cudaMemcpy(temp.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
+               cudaMemcpyDefault);
+    return temp;
+}
+void point_cloud::download(std::vector<point_t> &dst) const
+{
+    dst.resize(m_points.size());
+    cudaMemcpy(dst.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
+               cudaMemcpyDefault);
+}
+
+float3 point_cloud::min_bound()
+{
+    return compute_min_bound();
+}
+
+std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
+{
+    auto output = std::make_shared<point_cloud>(m_points.size());
+
+    if (voxel_size <= 0.0)
+    {
+        std::cout << YELLOW << "Voxel size is less than 0, a empty point cloud returned!"
+                  << std::endl;
+        return output;
+    }
+
+    auto min_bound_coordinates = compute_min_bound();
+    auto max_bound_coordinates = compute_max_bound();
+
+    const auto voxel_grid_min_bound = make_float3(min_bound_coordinates.x - voxel_size * 0.5,
+                                                  min_bound_coordinates.y - voxel_size * 0.5,
+                                                  min_bound_coordinates.z - voxel_size * 0.5);
+
+    const auto voxel_grid_max_bound = make_float3(max_bound_coordinates.x + voxel_size * 0.5,
+                                                  max_bound_coordinates.y + voxel_size * 0.5,
+                                                  max_bound_coordinates.z + voxel_size * 0.5);
+
+    if (voxel_size * std::numeric_limits<int>::max() <
+        max(max(voxel_grid_max_bound.x - voxel_grid_min_bound.x,
+                voxel_grid_max_bound.y - voxel_grid_min_bound.y),
+            voxel_grid_max_bound.z - voxel_grid_min_bound.z))
+    {
+        std::cout << YELLOW << "Voxel size is too small, a empty point cloud returned!"
+                  << std::endl;
+        return output;
+    }
+
+    auto err =
+        cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound, voxel_size);
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW
+                  << "Compute voxel grid down sample failed, a empty point cloud returned! \n"
+                  << err << std::endl;
+        return output;
+    }
+
+    return output;
+}
+
+std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth_frame &depth,
+                                                           const gca::cuda_color_frame &color,
+                                                           const gca::cuda_camera_param &param,
+                                                           float threshold_min_in_meter,
+                                                           float threshold_max_in_meter)
+{
+    auto pc = std::make_shared<point_cloud>();
+    cuda_make_point_cloud(pc->m_points, depth, color, param, threshold_min_in_meter,
+                          threshold_max_in_meter);
+    return pc;
+}
+
+/*********************privat*****************/
+float3 point_cloud::compute_min_bound()
+{
+    return cuda_compute_min_bound(m_points);
+}
+float3 point_cloud::compute_max_bound()
+{
+    return cuda_compute_min_bound(m_points);
+}
+} // namespace gca

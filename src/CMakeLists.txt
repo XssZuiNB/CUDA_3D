@@ -2,6 +2,7 @@ enable_language(CUDA)
 
 find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
+# find_package(Eigen3 REQUIRED)
 
 find_library(REALSENSE2_FOUND realsense2 HINTS ${LIBRARY_DIR} REQUIRED)
 if(NOT REALSENSE2_FOUND)
@@ -52,7 +53,7 @@ add_library(
     ${GEOMETRY_SRC}
     ${MOVEMENT_DETECTION_SRC}
     ${UTIL_SRC}
-    )
+)
 
 target_compile_features(
     gca_lib
@@ -71,6 +72,7 @@ target_link_libraries(
     gca_lib
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
+    # Eigen3::Eigen
 )
 
 set_target_properties(
