@@ -116,12 +116,14 @@ struct coordinates3
 
     template <typename T> __host__ __device__ coordinates3 operator*(T scalar) const
     {
-        return coordinates3(x * scalar, y * scalar, z * scalar);
+        auto scalar_ = static_cast<float>(scalar);
+        return coordinates3(x * scalar_, y * scalar_, z * scalar_);
     }
 
     template <typename T> __host__ __device__ coordinates3 operator/(T scalar) const
     {
-        return coordinates3(x / scalar, y / scalar, z / scalar);
+        auto scalar_ = static_cast<float>(scalar);
+        return coordinates3(x / scalar_, y / scalar_, z / scalar_);
     }
 
     __host__ __device__ bool operator==(const coordinates3 &other) const

@@ -2,6 +2,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <memory>
 #include <stdint.h>
 #include <stdio.h>
 #include <thrust/copy.h>
@@ -18,6 +19,45 @@
 
 namespace gca
 {
+/************************************ CUDA bilateral_filter  ************************************/
+
+__inline__ __device__ static float __gaussian(float x, float sigma)
+{
+    return exp(-(x * x) / (2 * sigma * sigma));
+}
+
+__device__ static float __bilateral_filter(const uint16_t *input, uint32_t input_width,
+                                           uint32_t input_height, int index_x, int index_y,
+                                           int filter_radius, float sigma_space, float sigma_depth)
+{
+    float sum_weight = 0.0f;
+    float sum = 0.0f;
+
+#pragma unroll
+    for (int dy = -filter_radius; dy <= filter_radius; ++dy)
+    {
+#pragma unroll
+        for (int dx = -filter_radius; dx <= filter_radius; ++dx)
+        {
+            int nx = index_x + dx;
+            int ny = index_y + dy;
+
+            if (nx >= 0 && nx < input_width && ny >= 0 && ny < input_height)
+            {
+                float weight = __gaussian(sqrtf(dx * dx + dy * dy), sigma_space) *
+                               __gaussian(abs(input[index_y * input_width + index_x] -
+                                              input[ny * input_width + nx]),
+                                          sigma_depth);
+
+                sum_weight += weight;
+                sum += weight * input[ny * input_width + nx];
+            }
+        }
+    }
+
+    return sum / sum_weight;
+}
+
 /****************** Create point cloud from rgbd, include invalid point remove ******************/
 
 __inline__ __device__ static void __transform_point_to_point(float to_point[3],
@@ -49,11 +89,12 @@ __inline__ __device__ static void __xyz_to_color_uv(const float xyz[3], float uv
     uv[1] = (xyz[1] * color_intrin.fy / xyz[2]) + color_intrin.cy;
 }
 
-__global__ void __kernel_make_pointcloud(
+__global__ static void __kernel_make_pointcloud(
     gca::point_t *point_set_out, const uint32_t width, const uint32_t height,
     const uint16_t *depth_data, const uint8_t *color_data, const gca::intrinsics *depth_intrin_ptr,
     const gca::intrinsics *color_intrin_ptr, const gca::extrinsics *depth_to_color_extrin_ptr,
-    const float depth_scale, float threshold_min, float threshold_max)
+    const float depth_scale, float threshold_min, float threshold_max,
+    bool if_bilateral_filter = false)
 {
     __shared__ gca::intrinsics depth_intrin_shared;
     __shared__ gca::intrinsics color_intrin_shared;
@@ -70,15 +111,20 @@ __global__ void __kernel_make_pointcloud(
 
     int depth_x = blockIdx.x * blockDim.x + threadIdx.x;
     int depth_y = blockIdx.y * blockDim.y + threadIdx.y;
-
     int depth_pixel_index = depth_y * width + depth_x;
 
     // Shared memory or texture memory loading of depth_data and color_data
 
     if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
     {
+        float depth_value;
         // Extract depth value
-        const auto depth_value = depth_data[depth_pixel_index] * depth_scale;
+        if (if_bilateral_filter)
+            depth_value =
+                __bilateral_filter(depth_data, width, height, depth_x, depth_y, 7, 10, 5) *
+                depth_scale;
+        else
+            depth_value = depth_data[depth_pixel_index] * depth_scale;
 
         if (depth_value <= 0.0 || depth_value < threshold_min || depth_value > threshold_max)
         {
@@ -219,7 +265,7 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     __kernel_make_pointcloud<<<depth_blocks, threads>>>(
         result.data().get(), width, height, cuda_depth_container.data(),
         cuda_color_container.data(), depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter, threshold_max_in_meter);
+        depth_scale, threshold_min_in_meter, threshold_max_in_meter, true);
 
     if (cudaDeviceSynchronize() != ::cudaSuccess)
         return false;
@@ -227,46 +273,6 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     remove_invalid_points(result);
 
     return true;
-}
-
-/********************* CUDA bilateral_filter implement, not be used for now *********************/
-__device__ float gaussian(float x, float sigma)
-{
-    return exp(-(x * x) / (2 * sigma * sigma));
-}
-
-__global__ void bilateral_filter_kernel(uint16_t *input, uint16_t *output, int width, int height,
-                                        int filter_radius, float sigma_space, float sigma_color)
-{
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x < width && y < height)
-    {
-        float sum_weight = 0.0f;
-        float sum = 0.0f;
-
-        for (int dy = -filter_radius; dy <= filter_radius; ++dy)
-        {
-            for (int dx = -filter_radius; dx <= filter_radius; ++dx)
-            {
-                int nx = x + dx;
-                int ny = y + dy;
-
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height)
-                {
-                    float weight =
-                        gaussian(sqrtf(dx * dx + dy * dy), sigma_space) *
-                        gaussian(abs(input[y * width + x] - input[ny * width + nx]), sigma_color);
-
-                    sum_weight += weight;
-                    sum += weight * input[ny * width + nx];
-                }
-            }
-        }
-
-        output[y * width + x] = static_cast<uint16_t>(sum / sum_weight);
-    }
 }
 
 /****************** Voxel grid Downsampling with Eigen Vector3f as coordinates ******************/
@@ -337,6 +343,20 @@ struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bo
     }
 };
 
+struct seq_points_functor
+{
+    seq_points_functor(const thrust::device_vector<gca::point_t> &src_points)
+        : m_src_points(thrust::raw_pointer_cast(src_points.data()))
+    {
+    }
+    const gca::point_t *m_src_points;
+
+    __host__ __device__ gca::point_t operator()(const int index) const
+    {
+        return m_src_points[index];
+    }
+};
+
 struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
 {
     __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
@@ -347,11 +367,6 @@ struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool
 
 struct add_points_functor
 {
-    add_points_functor(const float voxel_size)
-        : m_voxel_size(voxel_size)
-    {
-    }
-    const float m_voxel_size;
     __device__ gca::point_t operator()(const gca::point_t &first, const gca::point_t &second)
     {
 
@@ -367,10 +382,21 @@ struct add_points_functor
     }
 };
 
-struct computer_points_mean_functor
+struct compute_points_mean_functor
 {
+    compute_points_mean_functor(const uint32_t min_points_n_threshold)
+        : m_threshold(min_points_n_threshold)
+    {
+    }
+
+    const uint32_t m_threshold;
     __device__ gca::point_t operator()(const gca::point_t &points_sum, const uint32_t n)
     {
+        if (n < m_threshold)
+        {
+            return gca::point_t{.property = gca::point_property::invalid};
+        }
+
         return gca::point_t{.coordinates{
                                 .x = points_sum.coordinates.x / n,
                                 .y = points_sum.coordinates.y / n,
@@ -422,26 +448,25 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
         return ::cudaErrorInvalidValue;
     }
 
-    thrust::device_vector<gca::point_t> src_pc(src_points);
     thrust::device_vector<int3> keys(n_points);
 
-    auto start = std::chrono::steady_clock::now();
-    thrust::transform(src_pc.begin(), src_pc.end(), keys.begin(),
+    thrust::transform(src_points.begin(), src_points.end(), keys.begin(),
                       compute_voxel_key_functor(voxel_grid_min_bound, voxel_size));
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "Compute Key time: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
     auto err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
         return err;
     }
 
-    start = std::chrono::steady_clock::now();
-    thrust::sort_by_key(keys.begin(), keys.end(), src_pc.begin(), compare_voxel_key_functor());
-    end = std::chrono::steady_clock::now();
-    std::cout << "Sort Key time: "
+    auto start = std::chrono::steady_clock::now();
+    thrust::device_vector<gca::point_t> sorted_point_cloud(n_points);
+    thrust::device_vector<size_t> index_vec(n_points);
+    thrust::sequence(index_vec.begin(), index_vec.end());
+    thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
+    thrust::transform(index_vec.begin(), index_vec.end(), sorted_point_cloud.begin(),
+                      seq_points_functor(src_points));
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "index_vec in microseconds: "
               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
               << std::endl;
     err = cudaGetLastError();
@@ -450,34 +475,33 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
         return err;
     }
 
-    start = std::chrono::steady_clock::now();
-    auto end_iter_of_points =
-        thrust::reduce_by_key(keys.begin(), keys.end(), src_pc.begin(),
-                              thrust::make_discard_iterator(), result_points.begin(),
-                              voxel_key_equal_functor(), add_points_functor(voxel_size))
-            .second;
-    end = std::chrono::steady_clock::now();
-    std::cout << "Reduce points time: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    /* The following line of sorting code is only for memory. By using it the sorting time is 5ms.
+       But this is too slow for me. So i made a vector which contains only the index of the points
+       and only let it be sorted. And than I tried to get every point by using the src_points vector
+       and sorted index. This really works and the whole process runs less than 1.5 ms. I'm very
+       happy about it!!! */
+    // thrust::sort_by_key(keys.begin(), keys.end(), sorted_point_cloud.begin(),
+    // compare_voxel_key_functor());
 
     thrust::device_vector<uint32_t> points_counter_per_voxel(n_points, 1);
     thrust::device_vector<uint32_t> points_counter_result(n_points);
-    start = std::chrono::steady_clock::now();
+
+    auto end_iter_of_points =
+        thrust::reduce_by_key(keys.begin(), keys.end(), sorted_point_cloud.begin(),
+                              thrust::make_discard_iterator(), result_points.begin(),
+                              voxel_key_equal_functor(), add_points_functor())
+            .second;
+    err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+    {
+        return err;
+    }
+
     auto end_iter_of_points_counter =
         thrust::reduce_by_key(keys.begin(), keys.end(), points_counter_per_voxel.begin(),
                               thrust::make_discard_iterator(), points_counter_result.begin(),
                               voxel_key_equal_functor())
             .second;
-    end = std::chrono::steady_clock::now();
-    std::cout << "Reduce counter time: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
@@ -493,17 +517,14 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
     result_points.resize(new_n_points);
     points_counter_result.resize(new_n_points);
 
-    start = std::chrono::steady_clock::now();
     thrust::transform(result_points.begin(), result_points.end(), points_counter_result.begin(),
-                      result_points.begin(), computer_points_mean_functor());
-    end = std::chrono::steady_clock::now();
-    std::cout << "Compute mean time: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
+                      result_points.begin(), compute_points_mean_functor(3));
     if (err != ::cudaSuccess)
     {
         return err;
     }
+
+    remove_invalid_points(result_points);
 
     return ::cudaSuccess;
 }

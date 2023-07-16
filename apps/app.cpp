@@ -4,6 +4,7 @@
 #include <opencv4/opencv2/opencv.hpp>
 #include <thread>
 
+#include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -69,10 +70,7 @@ int main(int argc, char *argv[])
         auto end = std::chrono::steady_clock::now();
         std::cout << "GPU Voxel : " << pc_downsampling->m_points.size() << std::endl;
         pc_downsampling->download(points);
-        auto test = pc->min_bound();
-        std::cout << "Minbound: " << test.x << std::endl;
-        std::cout << "Minbound: " << test.y << std::endl;
-        std::cout << "Minbound: " << test.z << std::endl;
+
         for (auto point : points)
         {
             // if (point.property != gca::point_property::invalid)
@@ -88,15 +86,24 @@ int main(int argc, char *argv[])
             }
         }
 
+        /*
+
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
+        pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor_statistical;
+        sor_statistical.setInputCloud(cloud);
+        sor_statistical.setMeanK(10);
+        sor_statistical.setStddevMulThresh(1.0);
+        sor_statistical.filter(*cloud_filtered);
+
+
+
         pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
         sor.setInputCloud(cloud);
-        sor.setLeafSize(0.05f, 0.05f, 0.05f);
+        sor.setLeafSize(0.03f, 0.03f, 0.03f);
         sor.filter(*cloud_filtered);
-
+*/
         viewer.showCloud(cloud);
-
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;
@@ -104,7 +111,7 @@ int main(int argc, char *argv[])
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
-        std::cout << "Points number: " << cloud_filtered->size() << std::endl;
+        std::cout << "Points number: " << cloud->size() << std::endl;
         // std::cout << cloud_filtered->size() << std::endl;
         std::cout << "__________________________________________________" << std::endl;
     }
