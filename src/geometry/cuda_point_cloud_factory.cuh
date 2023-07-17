@@ -12,6 +12,7 @@
 
 namespace gca
 {
+/*this overload is only for debug, will be deleted later!*/
 bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
                            const gca::cuda_depth_frame &cuda_depth_container,
                            const gca::cuda_color_frame &cuda_color_container,
@@ -35,5 +36,6 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
 ::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
                                          const thrust::device_vector<gca::point_t> &src_points,
                                          const float3 &point_cloud_min_bound,
-                                         const float voxel_size);
+                                         const float voxel_size,
+                                         const uint32_t min_points_in_one_voxel = 0);
 } // namespace gca

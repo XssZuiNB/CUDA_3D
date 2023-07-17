@@ -108,6 +108,16 @@ public:
         return m_depth_to_color_extrinsics;
     }
 
+    gca::frame_format get_depth_frame_format() const
+    {
+        return m_depth_format;
+    }
+
+    gca::frame_format get_color_frame_format() const
+    {
+        return m_color_format;
+    }
+
     void receive_data()
     {
         if (m_device_started)

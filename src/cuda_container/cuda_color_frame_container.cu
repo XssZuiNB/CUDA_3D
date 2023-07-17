@@ -27,6 +27,16 @@ public:
     {
     }
 
+    uint32_t get_color_frame_width() const
+    {
+        return m_color_frame.get_frame_width();
+    }
+
+    uint32_t get_color_frame_height() const
+    {
+        return m_color_frame.get_frame_height();
+    }
+
     const uint8_t *data() const
     {
         return m_color_frame.data();
@@ -94,6 +104,15 @@ cuda_color_frame &cuda_color_frame::operator=(cuda_color_frame &&other) noexcept
         other.__m_impl = nullptr;
     }
     return *this;
+}
+
+uint32_t cuda_color_frame::get_color_frame_width() const
+{
+    return __m_impl->get_color_frame_width();
+}
+uint32_t cuda_color_frame::get_color_frame_height() const
+{
+    return __m_impl->get_color_frame_height();
 }
 
 const uint8_t *cuda_color_frame::data() const

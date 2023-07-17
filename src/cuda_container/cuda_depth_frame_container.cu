@@ -27,6 +27,16 @@ public:
     {
     }
 
+    uint32_t get_depth_frame_width() const
+    {
+        return m_depth_frame.get_frame_width();
+    }
+
+    uint32_t get_depth_frame_height() const
+    {
+        return m_depth_frame.get_frame_height();
+    }
+
     const uint16_t *data() const
     {
         return m_depth_frame.data();
@@ -94,6 +104,16 @@ cuda_depth_frame &cuda_depth_frame::operator=(cuda_depth_frame &&other) noexcept
         other.__m_impl = nullptr;
     }
     return *this;
+}
+
+uint32_t cuda_depth_frame::get_depth_frame_width() const
+{
+    return __m_impl->get_depth_frame_width();
+}
+
+uint32_t cuda_depth_frame::get_depth_frame_height() const
+{
+    return __m_impl->get_depth_frame_height();
 }
 
 const uint16_t *cuda_depth_frame::data() const

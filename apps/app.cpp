@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
         auto depth = rs_cam.get_depth_raw_data();
 
         std::vector<gca::point_t> points(640 * 480);
-        auto start = std::chrono::steady_clock::now();
+
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
         /*
@@ -65,11 +65,11 @@ int main(int argc, char *argv[])
         */
 
         auto pc = gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.5, 10.0);
-
+        auto start = std::chrono::steady_clock::now();
         auto pc_downsampling = pc->voxel_grid_down_sample(0.03f);
         auto end = std::chrono::steady_clock::now();
-        std::cout << "GPU Voxel : " << pc_downsampling->m_points.size() << std::endl;
-        pc_downsampling->download(points);
+        std::cout << "GPU Voxel : " << pc_downsampling->points_number() << std::endl;
+        pc->download(points);
 
         for (auto point : points)
         {
@@ -77,8 +77,8 @@ int main(int argc, char *argv[])
             {
                 PointT p;
                 p.x = point.coordinates.x;
-                p.y = point.coordinates.y;
-                p.z = point.coordinates.z;
+                p.y = -point.coordinates.y;
+                p.z = -point.coordinates.z;
                 p.r = point.r;
                 p.g = point.g;
                 p.b = point.b;
@@ -86,23 +86,20 @@ int main(int argc, char *argv[])
             }
         }
 
-        /*
-
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
-            new pcl::PointCloud<pcl::PointXYZRGBA>);
+            new pcl::PointCloud<pcl::PointXYZRGBA>); /*
         pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor_statistical;
         sor_statistical.setInputCloud(cloud);
         sor_statistical.setMeanK(10);
         sor_statistical.setStddevMulThresh(1.0);
         sor_statistical.filter(*cloud_filtered);
-
-
+*/
 
         pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
         sor.setInputCloud(cloud);
         sor.setLeafSize(0.03f, 0.03f, 0.03f);
         sor.filter(*cloud_filtered);
-*/
+
         viewer.showCloud(cloud);
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
@@ -111,7 +108,7 @@ int main(int argc, char *argv[])
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
-        std::cout << "Points number: " << cloud->size() << std::endl;
+        std::cout << "Points number: " << cloud_filtered->size() << std::endl;
         // std::cout << cloud_filtered->size() << std::endl;
         std::cout << "__________________________________________________" << std::endl;
     }

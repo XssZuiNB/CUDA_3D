@@ -21,11 +21,17 @@ public:
     void download(std::vector<point_t> &dst) const;
     std::vector<point_t> download() const;
 
-    float3 min_bound();
+    float3 compute_min_bound();
+    float3 compute_max_bound();
 
     __host__ __device__ bool has_points() const
     {
         return !m_points.empty();
+    }
+
+    __host__ __device__ size_t points_number() const
+    {
+        return m_points.size();
     }
 
     std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size);
@@ -39,10 +45,6 @@ public:
     ~point_cloud() = default;
 
 private:
-    float3 compute_min_bound();
-    float3 compute_max_bound();
-
-public:
     thrust::device_vector<gca::point_t> m_points;
 };
 

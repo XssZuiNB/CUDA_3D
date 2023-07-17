@@ -6,6 +6,7 @@
 
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/point_cloud.hpp"
+#include "util/console_color.hpp"
 
 namespace gca
 {
@@ -39,9 +40,13 @@ void point_cloud::download(std::vector<point_t> &dst) const
                cudaMemcpyDefault);
 }
 
-float3 point_cloud::min_bound()
+float3 point_cloud::compute_min_bound()
 {
-    return compute_min_bound();
+    return cuda_compute_min_bound(m_points);
+}
+float3 point_cloud::compute_max_bound()
+{
+    return cuda_compute_min_bound(m_points);
 }
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
@@ -82,7 +87,7 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
     {
         std::cout << YELLOW
                   << "Compute voxel grid down sample failed, a empty point cloud returned! \n"
-                  << err << std::endl;
+                  << std::endl;
         return output;
     }
 
@@ -96,18 +101,19 @@ std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth
                                                            float threshold_max_in_meter)
 {
     auto pc = std::make_shared<point_cloud>();
+
+    auto depth_frame_format = param.get_depth_frame_format();
+    auto color_frame_format = param.get_color_frame_format();
+    if (depth_frame_format != gca::Z16 || color_frame_format != gca::BGR8)
+    {
+        std::cout << YELLOW
+                  << "Frame format is not supported right now, A empty point cloud returned! \n"
+                  << std::endl;
+        return pc;
+    }
+
     cuda_make_point_cloud(pc->m_points, depth, color, param, threshold_min_in_meter,
                           threshold_max_in_meter);
     return pc;
-}
-
-/*********************privat*****************/
-float3 point_cloud::compute_min_bound()
-{
-    return cuda_compute_min_bound(m_points);
-}
-float3 point_cloud::compute_max_bound()
-{
-    return cuda_compute_min_bound(m_points);
 }
 } // namespace gca

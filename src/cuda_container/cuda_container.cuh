@@ -102,6 +102,16 @@ public:
         return *this;
     }
 
+    uint32_t get_frame_width() const
+    {
+        return m_width;
+    }
+
+    uint32_t get_frame_height() const
+    {
+        return m_height;
+    }
+
     void upload(const T *frame, uint32_t width, uint32_t height)
     {
 

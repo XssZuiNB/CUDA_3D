@@ -1,11 +1,10 @@
 #pragma once
 
-// #include <Eigen/Core>
 #include <vector_types.h>
 
 namespace gca
 {
-enum class point_property // make the size of enum 1 byte
+enum point_property
 {
     invalid = 0,
     active = 1,
@@ -136,6 +135,20 @@ struct coordinates3
         return x == xyz.x && y == xyz.y && z == xyz.z;
     }
 
+    __host__ __device__ bool operator<(const coordinates3 &other) const
+    {
+        if (x != other.x)
+            return x < other.x;
+
+        else if (y != other.y)
+            return y < other.y;
+
+        else if (z != other.z)
+            return z < other.z;
+
+        return false;
+    }
+
     __host__ __device__ bool operator!=(const coordinates3 &other) const
     {
         return !(*this == other);
@@ -154,10 +167,20 @@ struct coordinates3
     // __host__ __device__ Eigen::Vector3f to_eigen_vector3f() for later if need to be used :)
 };
 
+struct color4
+{
+    uint32_t r;
+    uint32_t g;
+    uint32_t b;
+    uint32_t a = 255;
+};
+
 struct __align__(16) point_t
 {
     float3 coordinates;
-    uint32_t r, g, b;
+    uint32_t r;
+    uint32_t g;
+    uint32_t b;
     point_property property;
 };
 } // namespace gca

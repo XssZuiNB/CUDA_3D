@@ -14,6 +14,8 @@ cuda_camera_param::cuda_camera_param()
     , m_width(0)
     , m_height(0)
     , m_depth_scale(0.0)
+    , m_depth_frame_format(gca::Z16)
+    , m_color_frame_format(gca::BGR8)
 {
 }
 
@@ -26,18 +28,8 @@ cuda_camera_param::cuda_camera_param(const device &device)
     : cuda_camera_param(device.get_depth_intrinsics(), device.get_color_intrinsics(),
                         device.get_depth_to_color_extrinsics(),
                         device.get_color_to_depth_extrinsics(), device.get_width(),
-                        device.get_height(), device.get_depth_scale())
-{
-}
-
-cuda_camera_param::cuda_camera_param(const gca::intrinsics *depth_intrin_ptr,
-                                     const gca::intrinsics *color_intrin_ptr,
-                                     const gca::extrinsics *depth2color_extrin_ptr,
-                                     const gca::extrinsics *color2depth_extrin_ptr,
-                                     const uint32_t *width_ptr, const uint32_t *height_ptr,
-                                     const float *depth_scale_ptr)
-    : cuda_camera_param(*depth_intrin_ptr, *color_intrin_ptr, *depth2color_extrin_ptr,
-                        *color2depth_extrin_ptr, *width_ptr, *height_ptr, *depth_scale_ptr)
+                        device.get_height(), device.get_depth_scale(),
+                        device.get_depth_frame_format(), device.get_color_frame_format())
 {
 }
 
@@ -46,10 +38,13 @@ cuda_camera_param::cuda_camera_param(const gca::intrinsics &depth_intrin,
                                      const gca::extrinsics &depth2color_extrin,
                                      const gca::extrinsics &color2depth_extrin,
                                      const uint32_t width, const uint32_t height,
-                                     const float depth_scale)
+                                     const float depth_scale, const gca::frame_format depth_format,
+                                     const gca::frame_format color_format)
     : m_width(width)
     , m_height(height)
     , m_depth_scale(depth_scale)
+    , m_depth_frame_format(depth_format)
+    , m_color_frame_format(color_format)
 {
     auto err = cudaMalloc(&m_depth_intrin_ptr, sizeof(gca::intrinsics));
     check_cuda_error(err, __FILE__, __LINE__);
@@ -72,6 +67,8 @@ cuda_camera_param::cuda_camera_param(const cuda_camera_param &other)
     : m_width(other.m_width)
     , m_height(other.m_height)
     , m_depth_scale(other.m_depth_scale)
+    , m_depth_frame_format(other.m_depth_frame_format)
+    , m_color_frame_format(other.m_color_frame_format)
 {
     auto err = cudaMalloc(&m_depth_intrin_ptr, sizeof(gca::intrinsics));
     check_cuda_error(err, __FILE__, __LINE__);
@@ -99,6 +96,8 @@ cuda_camera_param::cuda_camera_param(cuda_camera_param &&other) noexcept
     , m_width(other.m_width)
     , m_height(other.m_height)
     , m_depth_scale(other.m_depth_scale)
+    , m_depth_frame_format(other.m_depth_frame_format)
+    , m_color_frame_format(other.m_color_frame_format)
 {
     other.m_depth_intrin_ptr = nullptr;
     other.m_color_intrin_ptr = nullptr;
@@ -142,6 +141,8 @@ cuda_camera_param &cuda_camera_param::operator=(const cuda_camera_param &other)
         m_width = other.m_width;
         m_height = other.m_height;
         m_depth_scale = other.m_depth_scale;
+        m_depth_frame_format = other.m_depth_frame_format;
+        m_color_frame_format = other.m_color_frame_format;
     }
 
     return *this;
@@ -174,6 +175,8 @@ cuda_camera_param &cuda_camera_param::operator=(cuda_camera_param &&other) noexc
         m_width = other.m_width;
         m_height = other.m_height;
         m_depth_scale = other.m_depth_scale;
+        m_depth_frame_format = other.m_depth_frame_format;
+        m_color_frame_format = other.m_color_frame_format;
 
         other.m_depth_intrin_ptr = nullptr;
         other.m_color_intrin_ptr = nullptr;
@@ -288,6 +291,14 @@ uint32_t cuda_camera_param::get_height() const
 float cuda_camera_param::get_depth_scale() const
 {
     return m_depth_scale;
+}
+gca::frame_format cuda_camera_param::get_depth_frame_format() const
+{
+    return m_depth_frame_format;
+}
+gca::frame_format cuda_camera_param::get_color_frame_format() const
+{
+    return m_color_frame_format;
 }
 
 cuda_camera_param::~cuda_camera_param()
