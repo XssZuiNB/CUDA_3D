@@ -34,7 +34,9 @@ public:
         return m_points.size();
     }
 
-    std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size);
+    std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size,
+                                                        bool invalid_voxel_removal = false,
+                                                        uint32_t min_points_num_in_one_voxel = 1);
 
     static std::shared_ptr<point_cloud> create_from_rgbd(const gca::cuda_depth_frame &depth,
                                                          const gca::cuda_color_frame &color,

@@ -394,7 +394,7 @@ struct compute_points_mean_functor
 
     __device__ gca::point_t operator()(const gca::point_t &points_sum, const uint32_t n)
     {
-        if (n < (m_threshold + 1))
+        if (n <= m_threshold)
         {
             return gca::point_t{.property = gca::point_property::invalid};
         }
@@ -445,7 +445,7 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
 ::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
                                          const thrust::device_vector<gca::point_t> &src_points,
                                          const float3 &voxel_grid_min_bound, const float voxel_size,
-                                         const uint32_t min_points_in_one_voxel)
+                                         const uint32_t min_points_num_in_one_voxel)
 {
     auto n_points = src_points.size();
     if (result_points.size() != n_points)
@@ -518,7 +518,8 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
     result_points_counter.resize(new_n_points);
 
     thrust::transform(result_points.begin(), result_points.end(), result_points_counter.begin(),
-                      result_points.begin(), compute_points_mean_functor(min_points_in_one_voxel));
+                      result_points.begin(),
+                      compute_points_mean_functor(min_points_num_in_one_voxel));
     if (err != ::cudaSuccess)
     {
         return err;
