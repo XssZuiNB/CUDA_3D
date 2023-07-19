@@ -49,5 +49,4 @@ public:
 private:
     thrust::device_vector<gca::point_t> m_points;
 };
-
 } // namespace gca

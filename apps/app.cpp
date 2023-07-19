@@ -4,6 +4,7 @@
 #include <opencv4/opencv2/opencv.hpp>
 #include <thread>
 
+#include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -65,11 +66,21 @@ int main(int argc, char *argv[])
         */
 
         auto pc = gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.5, 10.0);
-        auto start = std::chrono::steady_clock::now();
-        auto pc_downsampling = pc->voxel_grid_down_sample(0.03f);
-        auto end = std::chrono::steady_clock::now();
+
+        auto pc_downsampling = pc->voxel_grid_down_sample(0.02f);
+
         std::cout << "GPU Voxel : " << pc_downsampling->points_number() << std::endl;
-        pc->download(points);
+        auto min_b = pc->compute_min_bound();
+        auto max_b = pc->compute_max_bound();
+        std::cout << "min bound : " << min_b.x << "\n"
+                  << min_b.y << "\n"
+                  << min_b.z << "\n"
+                  << std::endl;
+        std::cout << "max bound : " << max_b.x << "\n"
+                  << max_b.y << "\n"
+                  << max_b.z << "\n"
+                  << std::endl;
+        pc_downsampling->download(points);
 
         for (auto point : points)
         {
@@ -85,22 +96,32 @@ int main(int argc, char *argv[])
                 cloud->points.push_back(p);
             }
         }
-
+        auto start = std::chrono::steady_clock::now();
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
-            new pcl::PointCloud<pcl::PointXYZRGBA>); /*
-        pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor_statistical;
-        sor_statistical.setInputCloud(cloud);
-        sor_statistical.setMeanK(10);
-        sor_statistical.setStddevMulThresh(1.0);
-        sor_statistical.filter(*cloud_filtered);
-*/
+            new pcl::PointCloud<pcl::PointXYZRGBA>);
 
-        pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
-        sor.setInputCloud(cloud);
-        sor.setLeafSize(0.03f, 0.03f, 0.03f);
-        sor.filter(*cloud_filtered);
+        pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
+        sor_radius.setInputCloud(cloud);
+        sor_radius.setRadiusSearch(0.02);
+        sor_radius.setMinNeighborsInRadius(2);
+        sor_radius.filter(*cloud_filtered);
+        auto end = std::chrono::steady_clock::now();
+        /*
+         pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor_statistical;
+         sor_statistical.setInputCloud(cloud);
+         sor_statistical.setMeanK(10);
+         sor_statistical.setStddevMulThresh(1.0);
+         sor_statistical.filter(*cloud_filtered);
 
-        viewer.showCloud(cloud);
+
+
+
+                pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+                sor.setInputCloud(cloud);
+                sor.setLeafSize(0.03f, 0.03f, 0.03f);
+                sor.filter(*cloud_filtered);
+        */
+        viewer.showCloud(cloud_filtered);
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;

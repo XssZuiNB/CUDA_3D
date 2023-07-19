@@ -8,6 +8,7 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
+#include <thrust/gather.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
 
@@ -121,7 +122,7 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
         // Extract depth value
         if (if_bilateral_filter)
             depth_value =
-                __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 7, 10, 5) *
+                __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 7, 1, 50) *
                 depth_scale;
         else
             depth_value = depth_frame_data[depth_pixel_index] * depth_scale;
@@ -265,7 +266,7 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
         result.data().get(), width, height, cuda_depth_container.data(),
         cuda_color_container.data(), depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter, threshold_max_in_meter);
+        depth_scale, threshold_min_in_meter, threshold_max_in_meter, true);
 
     if (cudaDeviceSynchronize() != ::cudaSuccess)
         return false;
@@ -343,7 +344,8 @@ struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bo
     }
 };
 
-struct seq_points_functor
+struct seq_points_functor // not used, using thrust::gather instead. No speed improvement but makes
+                          // code cleaner
 {
     seq_points_functor(const thrust::device_vector<gca::point_t> &src_points)
         : m_src_points(thrust::raw_pointer_cast(src_points.data()))
@@ -467,21 +469,25 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
     thrust::device_vector<size_t> index_vec(n_points);
     thrust::sequence(index_vec.begin(), index_vec.end());
     thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
-    thrust::transform(index_vec.begin(), index_vec.end(), sorted_point_cloud.begin(),
-                      seq_points_functor(src_points));
+    thrust::gather(index_vec.begin(), index_vec.end(), src_points.begin(),
+                   sorted_point_cloud.begin());
+    // thrust::transform(index_vec.begin(), index_vec.end(), sorted_point_cloud.begin(),
+    // seq_points_functor(src_points));
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
         return err;
     }
 
-    /* The following line of sorting code is only for memory. RIP man.... By using it the sorting
-       time is 5ms. But this is too slow for me. So i made a vector which contains only the index of
-       the points and only let it be sorted. And than I tried to get every point by using the
-       src_points vector and sorted index. This really works and the whole process runs less
-       than 1.5 ms. I'm very happy about it!!! */
-    // thrust::sort_by_key(keys.begin(), keys.end(), sorted_point_cloud.begin(),
-    // compare_voxel_key_functor());
+    /* The following line of sorting code is only for memory. RIP
+       man.... By using it the sorting time is 5ms. But this is
+       too slow for me. So i made a vector which contains only the
+       index of the points and only let it be sorted. And than I
+       tried to get every point by using the src_points vector and
+       sorted index. This really works and the whole process runs
+       less than 1.5 ms. I'm very happy about it!!! */
+    // thrust::sort_by_key(keys.begin(), keys.end(),
+    // sorted_point_cloud.begin(), compare_voxel_key_functor());
 
     thrust::device_vector<uint32_t> points_counter_per_voxel(n_points, 1);
     thrust::device_vector<uint32_t> result_points_counter(n_points);
