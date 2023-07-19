@@ -28,7 +28,7 @@ point_cloud &point_cloud::operator=(const point_cloud &other)
 
 std::vector<point_t> point_cloud::download() const
 {
-    std::vector<point_t> temp;
+    std::vector<point_t> temp(m_points.size());
     cudaMemcpy(temp.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
                cudaMemcpyDefault);
     return temp;

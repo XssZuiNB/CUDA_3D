@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
         auto color = rs_cam.get_color_raw_data();
         auto depth = rs_cam.get_depth_raw_data();
 
-        std::vector<gca::point_t> points(640 * 480);
+        // std::vector<gca::point_t> points(640 * 480);
 
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
@@ -80,9 +80,9 @@ int main(int argc, char *argv[])
                   << max_b.y << "\n"
                   << max_b.z << "\n"
                   << std::endl;
-        pc_downsampling->download(points);
+        auto points = pc_downsampling->download();
 
-        for (auto point : points)
+        for (auto &point : points)
         {
             // if (point.property != gca::point_property::invalid)
             {
