@@ -46,7 +46,7 @@ float3 point_cloud::compute_min_bound()
 }
 float3 point_cloud::compute_max_bound()
 {
-    return cuda_compute_min_bound(m_points);
+    return cuda_compute_max_bound(m_points);
 }
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(
