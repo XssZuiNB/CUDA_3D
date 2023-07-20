@@ -28,6 +28,5 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
 ::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
                                          const thrust::device_vector<gca::point_t> &src_points,
                                          const float3 &point_cloud_min_bound,
-                                         const float voxel_size,
-                                         const uint32_t min_points_num_in_one_voxel = 0);
+                                         const float voxel_size);
 } // namespace gca

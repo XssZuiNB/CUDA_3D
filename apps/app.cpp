@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
         auto depth = rs_cam.get_depth_raw_data();
 
         // std::vector<gca::point_t> points(640 * 480);
-
+        auto start = std::chrono::steady_clock::now();
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
         /*
@@ -66,12 +66,15 @@ int main(int argc, char *argv[])
         */
 
         auto pc = gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.5, 10.0);
-        auto start = std::chrono::steady_clock::now();
+
         auto pc_downsampling = pc->voxel_grid_down_sample(0.02f);
         auto end = std::chrono::steady_clock::now();
         std::cout << "GPU Voxel : " << pc_downsampling->points_number() << std::endl;
+
         auto min_b = pc->compute_min_bound();
+
         auto max_b = pc->compute_max_bound();
+
         std::cout << "min bound : " << min_b.x << "\n"
                   << min_b.y << "\n"
                   << min_b.z << "\n"
@@ -80,7 +83,7 @@ int main(int argc, char *argv[])
                   << max_b.y << "\n"
                   << max_b.z << "\n"
                   << std::endl;
-        auto points = pc->download();
+        auto points = pc_downsampling->download();
 
         for (auto &point : points)
         {
@@ -121,7 +124,7 @@ int main(int argc, char *argv[])
         sor.setLeafSize(0.02f, 0.02f, 0.02f);
         sor.filter(*cloud_filtered);
 
-        viewer.showCloud(cloud_filtered);
+        viewer.showCloud(cloud);
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;

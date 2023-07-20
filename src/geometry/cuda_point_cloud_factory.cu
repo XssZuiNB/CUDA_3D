@@ -1,16 +1,14 @@
-#include <chrono>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#include <memory>
-#include <stdint.h>
-#include <stdio.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
 #include <thrust/gather.h>
 #include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/permutation_iterator.h>
 #include <thrust/sort.h>
+#include <thrust/transform.h>
 
 #include "camera/camera_param.hpp"
 #include "cuda_container/cuda_container.hpp"
@@ -282,7 +280,8 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
 
 struct add_points_functor
 {
-    __device__ gca::point_t operator()(const gca::point_t &first, const gca::point_t &second)
+    __forceinline__ __device__ gca::point_t operator()(const gca::point_t &first,
+                                                       const gca::point_t &second)
     {
 
         return gca::point_t{.coordinates{
@@ -299,20 +298,9 @@ struct add_points_functor
 
 struct compute_points_mean_functor
 {
-    compute_points_mean_functor(const uint32_t min_points_n_threshold)
-        : m_threshold(min_points_n_threshold)
+    __forceinline__ __device__ gca::point_t operator()(const gca::point_t &points_sum,
+                                                       const uint32_t n)
     {
-    }
-
-    const uint32_t m_threshold;
-
-    __device__ gca::point_t operator()(const gca::point_t &points_sum, const uint32_t n)
-    {
-        if (n <= m_threshold)
-        {
-            return gca::point_t{.property = gca::point_property::invalid};
-        }
-
         return gca::point_t{.coordinates{
                                 .x = points_sum.coordinates.x / n,
                                 .y = points_sum.coordinates.y / n,
@@ -329,8 +317,7 @@ struct compute_points_mean_functor
 
 ::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
                                          const thrust::device_vector<gca::point_t> &src_points,
-                                         const float3 &voxel_grid_min_bound, const float voxel_size,
-                                         const uint32_t min_points_num_in_one_voxel)
+                                         const float3 &voxel_grid_min_bound, const float voxel_size)
 {
     auto n_points = src_points.size();
     if (result_points.size() != n_points)
@@ -348,33 +335,22 @@ struct compute_points_mean_functor
         return err;
     }
 
-    thrust::device_vector<gca::point_t> sorted_point_cloud(n_points);
     thrust::device_vector<size_t> index_vec(n_points);
     thrust::sequence(index_vec.begin(), index_vec.end());
     thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
-    thrust::gather(index_vec.begin(), index_vec.end(), src_points.begin(),
-                   sorted_point_cloud.begin());
+    auto get_point_with_sorted_index_iter =
+        thrust::make_permutation_iterator(src_points.begin(), index_vec.begin());
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
         return err;
     }
 
-    /* The following line of sorting code is only for memory. RIP
-       man.... By using it the sorting time is 5ms. But this is
-       too slow for me. So i made a vector which contains only the
-       index of the points and only let it be sorted. And than I
-       tried to get every point by using the src_points vector and
-       sorted index. This really works and the whole process runs
-       less than 1.5 ms. I'm very happy about it!!! */
-    // thrust::sort_by_key(keys.begin(), keys.end(),
-    // sorted_point_cloud.begin(), compare_voxel_key_functor());
-
     thrust::device_vector<uint32_t> points_counter_per_voxel(n_points, 1);
     thrust::device_vector<uint32_t> result_points_counter(n_points);
 
     auto end_iter_of_points =
-        thrust::reduce_by_key(keys.begin(), keys.end(), sorted_point_cloud.begin(),
+        thrust::reduce_by_key(keys.begin(), keys.end(), get_point_with_sorted_index_iter,
                               thrust::make_discard_iterator(), result_points.begin(),
                               voxel_key_equal_functor(), add_points_functor())
             .second;
@@ -405,14 +381,11 @@ struct compute_points_mean_functor
     result_points_counter.resize(new_n_points);
 
     thrust::transform(result_points.begin(), result_points.end(), result_points_counter.begin(),
-                      result_points.begin(),
-                      compute_points_mean_functor(min_points_num_in_one_voxel));
+                      result_points.begin(), compute_points_mean_functor());
     if (err != ::cudaSuccess)
     {
         return err;
     }
-
-    remove_invalid_points(result_points);
 
     return ::cudaSuccess;
 }

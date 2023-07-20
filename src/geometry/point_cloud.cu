@@ -50,8 +50,7 @@ float3 point_cloud::compute_max_bound()
     return cuda_compute_max_bound(m_points);
 }
 
-std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(
-    float voxel_size, bool invalid_voxel_removal, uint32_t min_points_num_in_one_voxel)
+std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
 {
     auto output = std::make_shared<point_cloud>(m_points.size());
 
@@ -83,11 +82,8 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(
         return output;
     }
 
-    auto err = invalid_voxel_removal
-                   ? cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound,
-                                                voxel_size, min_points_num_in_one_voxel)
-                   : cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound,
-                                                voxel_size);
+    auto err =
+        cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound, voxel_size);
     if (err != ::cudaSuccess)
     {
         std::cout << YELLOW
