@@ -7,7 +7,7 @@
 #include <memory>
 #include <stdexcept>
 
-static inline int div_up(int total, int grain)
+__forceinline__ static int div_up(int total, int grain)
 {
     return (total + grain - 1) / grain;
 }
@@ -39,7 +39,7 @@ template <typename T> static inline bool alloc_device(std::shared_ptr<T> &cuda_p
     return true;
 }
 
-inline static void check_cuda_error(cudaError_t err, const char *file, int line)
+__forceinline__ static void check_cuda_error(cudaError_t err, const char *file, int line)
 {
     if (err != cudaSuccess)
     {

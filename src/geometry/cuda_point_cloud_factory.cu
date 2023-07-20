@@ -15,6 +15,7 @@
 #include "camera/camera_param.hpp"
 #include "cuda_container/cuda_container.hpp"
 #include "geometry/cuda_point_cloud_factory.cuh"
+#include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
 
@@ -22,7 +23,7 @@ namespace gca
 {
 /************************************ CUDA bilateral_filter  ************************************/
 
-__inline__ __device__ static float __gaussian(float x, float sigma)
+__forceinline__ __device__ static float __gaussian(float x, float sigma)
 {
     return exp(-(x * x) / (2 * sigma * sigma));
 }
@@ -61,9 +62,9 @@ __device__ static float __bilateral_filter(const uint16_t *input, uint32_t input
 
 /****************** Create point cloud from rgbd, include invalid point remove ******************/
 
-__inline__ __device__ static void __transform_point_to_point(float to_point[3],
-                                                             const float from_point[3],
-                                                             const gca::extrinsics &extrin)
+__forceinline__ __device__ static void __transform_point_to_point(float to_point[3],
+                                                                  const float from_point[3],
+                                                                  const gca::extrinsics &extrin)
 {
     to_point[0] = extrin.rotation[0] * from_point[0] + extrin.rotation[3] * from_point[1] +
                   extrin.rotation[6] * from_point[2] + extrin.translation[0];
@@ -73,9 +74,9 @@ __inline__ __device__ static void __transform_point_to_point(float to_point[3],
                   extrin.rotation[8] * from_point[2] + extrin.translation[2];
 }
 
-__inline__ __device__ static void __depth_uv_to_xyz(const float uv[2], const float depth,
-                                                    float xyz[3],
-                                                    const gca::intrinsics &depth_intrin)
+__forceinline__ __device__ static void __depth_uv_to_xyz(const float uv[2], const float depth,
+                                                         float xyz[3],
+                                                         const gca::intrinsics &depth_intrin)
 {
     auto z = depth;
     xyz[2] = z;
@@ -83,8 +84,8 @@ __inline__ __device__ static void __depth_uv_to_xyz(const float uv[2], const flo
     xyz[1] = (uv[1] - depth_intrin.cy) * z / depth_intrin.fy;
 }
 
-__inline__ __device__ static void __xyz_to_color_uv(const float xyz[3], float uv[2],
-                                                    const gca::intrinsics &color_intrin)
+__forceinline__ __device__ static void __xyz_to_color_uv(const float xyz[3], float uv[2],
+                                                         const gca::intrinsics &color_intrin)
 {
     uv[0] = (xyz[0] * color_intrin.fx / xyz[2]) + color_intrin.cx;
     uv[1] = (xyz[1] * color_intrin.fy / xyz[2]) + color_intrin.cy;
@@ -183,7 +184,7 @@ struct check_is_valid_point_functor
     }
 };
 
-__inline__ static void remove_invalid_points(thrust::device_vector<gca::point_t> &result)
+__forceinline__ static void remove_invalid_points(thrust::device_vector<gca::point_t> &result)
 {
     thrust::device_vector<gca::point_t> temp(result.size());
     auto new_size = thrust::copy_if(result.begin(), result.end(), temp.begin(),
@@ -279,95 +280,6 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
 /****************** Voxel grid Downsampling with Eigen Vector3f as coordinates ******************/
 /**************************** Useful functors for thrust algorithms  ****************************/
 
-struct min_bound_functor
-{
-    __device__ gca::point_t operator()(const gca::point_t &first, const gca::point_t &second)
-    {
-        gca::point_t temp;
-        temp.coordinates.x = thrust::min(first.coordinates.x, second.coordinates.x);
-        temp.coordinates.y = thrust::min(first.coordinates.y, second.coordinates.y);
-        temp.coordinates.z = thrust::min(first.coordinates.z, second.coordinates.z);
-        return temp;
-    }
-};
-
-struct max_bound_functor
-{
-    __device__ gca::point_t operator()(const gca::point_t &first, const gca::point_t &second)
-    {
-        gca::point_t temp;
-        temp.coordinates.x = thrust::max(first.coordinates.x, second.coordinates.x);
-        temp.coordinates.y = thrust::max(first.coordinates.y, second.coordinates.y);
-        temp.coordinates.z = thrust::max(first.coordinates.z, second.coordinates.z);
-        return temp;
-    }
-};
-
-struct compute_voxel_key_functor
-{
-    compute_voxel_key_functor(const float3 &voxel_grid_min_bound, const float voxel_size)
-        : m_voxel_grid_min_bound(voxel_grid_min_bound)
-        , m_voxel_size(voxel_size)
-    {
-    }
-
-    const float3 m_voxel_grid_min_bound;
-    const float m_voxel_size;
-
-    __device__ int3 operator()(const gca::point_t &point)
-    {
-        int3 ref_coord;
-        ref_coord.x =
-            __float2int_rd((point.coordinates.x - m_voxel_grid_min_bound.x) / m_voxel_size);
-        ref_coord.y =
-            __float2int_rd((point.coordinates.y - m_voxel_grid_min_bound.y) / m_voxel_size);
-        ref_coord.z =
-            __float2int_rd((point.coordinates.z - m_voxel_grid_min_bound.z) / m_voxel_size);
-        return ref_coord;
-    }
-};
-
-struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bool>
-{
-    __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
-    {
-        if (lhs.x != rhs.x)
-            return lhs.x < rhs.x;
-
-        else if (lhs.y != rhs.y)
-            return lhs.y < rhs.y;
-
-        else if (lhs.z != rhs.z)
-            return lhs.z < rhs.z;
-
-        return false;
-    }
-};
-
-struct seq_points_functor // not used, using thrust::gather instead. No speed improvement but makes
-                          // code cleaner
-{
-    seq_points_functor(const thrust::device_vector<gca::point_t> &src_points)
-        : m_src_points(thrust::raw_pointer_cast(src_points.data()))
-    {
-    }
-
-    const gca::point_t *m_src_points;
-
-    __host__ __device__ gca::point_t operator()(const int index) const
-    {
-        return m_src_points[index];
-    }
-};
-
-struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
-{
-    __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
-    {
-        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
-    }
-};
-
 struct add_points_functor
 {
     __device__ gca::point_t operator()(const gca::point_t &first, const gca::point_t &second)
@@ -413,35 +325,6 @@ struct compute_points_mean_functor
     }
 };
 
-/*************************************** Public functions ***************************************/
-
-float3 cuda_compute_min_bound(const thrust::device_vector<gca::point_t> &points)
-{
-    gca::point_t init{.coordinates{.x = FLT_MAX, .y = FLT_MAX, .z = FLT_MAX}};
-    return thrust::reduce(points.begin(), points.end(), init, min_bound_functor()).coordinates;
-}
-
-float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
-{
-    gca::point_t init{.coordinates{.x = FLT_MIN, .y = FLT_MIN, .z = FLT_MIN}};
-    return thrust::reduce(points.begin(), points.end(), init, max_bound_functor()).coordinates;
-}
-
-::cudaError_t cuda_compute_voxel_keys(thrust::device_vector<int3> &keys,
-                                      const thrust::device_vector<gca::point_t> &points,
-                                      const float3 &voxel_grid_min_bound, const float voxel_size)
-{
-    if (keys.size() != points.size())
-    {
-        return ::cudaErrorInvalidValue;
-    }
-
-    thrust::transform(points.begin(), points.end(), keys.begin(),
-                      compute_voxel_key_functor(voxel_grid_min_bound, voxel_size));
-
-    return cudaGetLastError();
-}
-
 /*********************************** Voxel grid down sampling ***********************************/
 
 ::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
@@ -471,8 +354,6 @@ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
     thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
     thrust::gather(index_vec.begin(), index_vec.end(), src_points.begin(),
                    sorted_point_cloud.begin());
-    // thrust::transform(index_vec.begin(), index_vec.end(), sorted_point_cloud.begin(),
-    // seq_points_functor(src_points));
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {

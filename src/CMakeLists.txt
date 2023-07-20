@@ -86,7 +86,7 @@ if(${CMAKE_VERSION} GREATER_EQUAL 3.18)
     set_target_properties(
         gca_lib
         PROPERTIES
-        CUDA_ARCHITECTURES "52,70"
+        CUDA_ARCHITECTURES "61"
     )
 
 else()
