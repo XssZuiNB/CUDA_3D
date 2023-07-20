@@ -1,9 +1,9 @@
 #pragma once
 
-#include <memory>
-
 #include "camera/camera_device.hpp"
 #include "camera/camera_param.hpp"
+
+#include <memory>
 
 namespace gca
 {
@@ -18,6 +18,9 @@ public:
 
     cuda_color_frame &operator=(const cuda_color_frame &other);
     cuda_color_frame &operator=(cuda_color_frame &&other) noexcept;
+
+    uint32_t get_color_frame_width() const;
+    uint32_t get_color_frame_height() const;
 
     void upload(const uint8_t *src, uint32_t width, uint32_t height);
 
@@ -45,6 +48,9 @@ public:
     cuda_depth_frame &operator=(const cuda_depth_frame &other);
     cuda_depth_frame &operator=(cuda_depth_frame &&other) noexcept;
 
+    uint32_t get_depth_frame_width() const;
+    uint32_t get_depth_frame_height() const;
+
     void upload(const uint16_t *src, uint32_t width, uint32_t height);
 
     const uint16_t *data() const;
@@ -67,15 +73,12 @@ public:
     cuda_camera_param(const device &device);
     cuda_camera_param(const device *device_ptr);
 
-    cuda_camera_param(const gca::intrinsics *depth_intrin_ptr,
-                      const gca::intrinsics *color_intrin_ptr,
-                      const gca::extrinsics *depth2color_extrin_ptr,
-                      const gca::extrinsics *color2depth_extrin_ptr, const uint32_t *width_ptr,
-                      const uint32_t *height_ptr, const float *depth_scale_ptr);
     cuda_camera_param(const gca::intrinsics &depth_intrin, const gca::intrinsics &color_intrin,
                       const gca::extrinsics &depth2color_extrin,
                       const gca::extrinsics &color2depth_extrin, const uint32_t width,
-                      const uint32_t height, const float depth_scale);
+                      const uint32_t height, const float depth_scale,
+                      const gca::frame_format depth_format = gca::Z16,
+                      const gca::frame_format color_format = gca::BGR8);
 
     cuda_camera_param(const cuda_camera_param &other);
     cuda_camera_param(cuda_camera_param &&other) noexcept;
@@ -95,8 +98,8 @@ public:
     uint32_t get_width() const;
     uint32_t get_height() const;
     float get_depth_scale() const;
-
-    void clear();
+    gca::frame_format get_depth_frame_format() const;
+    gca::frame_format get_color_frame_format() const;
 
     ~cuda_camera_param();
 
@@ -108,5 +111,7 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     float m_depth_scale;
+    gca::frame_format m_depth_frame_format;
+    gca::frame_format m_color_frame_format;
 };
 } // namespace gca

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "camera/camera_param.hpp"
+#include "util/console_color.hpp"
 
 namespace gca
 {
@@ -29,14 +30,14 @@ public:
     {
         if (!find_device())
         {
-            std::cout << "Didn't find a device!" << std::endl;
+            std::cout << RED << "Didn't find a camera!" << std::endl;
             return false;
         }
-        std::cout << "Found device! Name: " << m_device_name << std::endl;
+        std::cout << D_GREEN << "Found camera! Name: " << m_device_name << std::endl;
 
         if (!start_stream())
         {
-            std::cout << "Couldn't start stream!" << std::endl;
+            std::cout << RED << "Couldn't start stream!" << std::endl;
             return false;
         }
         m_depth_scale = read_depth_scale();
@@ -64,7 +65,7 @@ public:
     {
         if (!m_device_started)
         {
-            std::cout << "Device not started, invalid depth_scale returned!" << std::endl;
+            std::cout << YELLOW << "Device not started, invalid depth_scale returned!" << std::endl;
         }
 
         return m_depth_scale;
@@ -74,7 +75,7 @@ public:
     {
         if (!m_device_started)
         {
-            std::cout << "Device not started, invalid intrinsics returned!" << std::endl;
+            std::cout << YELLOW << "Device not started, invalid intrinsics returned!" << std::endl;
         }
 
         return m_color_intrinsics;
@@ -84,7 +85,7 @@ public:
     {
         if (!m_device_started)
         {
-            std::cout << "Device not started, invalid intrinsics returned!" << std::endl;
+            std::cout << YELLOW << "Device not started, invalid intrinsics returned!" << std::endl;
         }
         return m_depth_intrinsics;
     }
@@ -93,7 +94,7 @@ public:
     {
         if (!m_device_started)
         {
-            std::cout << "Device not started, invalid extrinsics returned!" << std::endl;
+            std::cout << YELLOW << "Device not started, invalid extrinsics returned!" << std::endl;
         }
         return m_color_to_depth_extrinsics;
     }
@@ -102,9 +103,19 @@ public:
     {
         if (!m_device_started)
         {
-            std::cout << "Device not started, invalid extrinsics returned!" << std::endl;
+            std::cout << YELLOW << "Device not started, invalid extrinsics returned!" << std::endl;
         }
         return m_depth_to_color_extrinsics;
+    }
+
+    gca::frame_format get_depth_frame_format() const
+    {
+        return m_depth_format;
+    }
+
+    gca::frame_format get_color_frame_format() const
+    {
+        return m_color_format;
     }
 
     void receive_data()

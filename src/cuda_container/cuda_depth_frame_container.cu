@@ -1,8 +1,8 @@
-#include <cuda_runtime_api.h>
-
-#include "cuda_container.cuh"
-#include "cuda_container.hpp"
+#include "cuda_container/cuda_container.cuh"
+#include "cuda_container/cuda_container.hpp"
 #include "util/cuda_util.cuh"
+
+#include <cuda_runtime_api.h>
 
 namespace gca
 {
@@ -25,6 +25,16 @@ public:
     cuda_depth_frame_impl(const cuda_depth_frame_impl &other)
         : m_depth_frame(other.m_depth_frame)
     {
+    }
+
+    uint32_t get_depth_frame_width() const
+    {
+        return m_depth_frame.get_frame_width();
+    }
+
+    uint32_t get_depth_frame_height() const
+    {
+        return m_depth_frame.get_frame_height();
     }
 
     const uint16_t *data() const
@@ -94,6 +104,16 @@ cuda_depth_frame &cuda_depth_frame::operator=(cuda_depth_frame &&other) noexcept
         other.__m_impl = nullptr;
     }
     return *this;
+}
+
+uint32_t cuda_depth_frame::get_depth_frame_width() const
+{
+    return __m_impl->get_depth_frame_width();
+}
+
+uint32_t cuda_depth_frame::get_depth_frame_height() const
+{
+    return __m_impl->get_depth_frame_height();
 }
 
 const uint16_t *cuda_depth_frame::data() const

@@ -1,11 +1,11 @@
 #pragma once
 
+#include "camera/camera_param.hpp"
+#include "util/cuda_util.cuh"
+
 #include <cuda_runtime_api.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
-
-#include "camera/camera_param.hpp"
-#include "util/cuda_util.cuh"
 
 namespace gca
 {
@@ -100,6 +100,16 @@ public:
             other.m_frame_ptr = nullptr;
         }
         return *this;
+    }
+
+    uint32_t get_frame_width() const
+    {
+        return m_width;
+    }
+
+    uint32_t get_frame_height() const
+    {
+        return m_height;
     }
 
     void upload(const T *frame, uint32_t width, uint32_t height)
