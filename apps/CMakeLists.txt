@@ -1,6 +1,6 @@
 set(app ${CMAKE_PROJECT_NAME})
 find_package(PCL REQUIRED)
-# find_package(OpenMP REQUIRED)
+find_package(OpenMP REQUIRED)
 
 add_executable(
     ${app}
@@ -25,5 +25,5 @@ target_link_libraries(
     PUBLIC
     gca_lib
     ${PCL_LIBRARIES}
-    # OpenMP::OpenMP_CXX
+    OpenMP::OpenMP_CXX
 )

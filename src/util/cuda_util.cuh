@@ -3,6 +3,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <thrust/device_vector.h>
 
 #include <memory>
 #include <stdexcept>
@@ -46,4 +47,12 @@ __forceinline__ static void check_cuda_error(cudaError_t err, const char *file, 
         throw std::runtime_error(std::string(file) + ":" + std::to_string(line) + ": " +
                                  cudaGetErrorString(err));
     }
+}
+
+template <typename T>
+void print_device_vector(const thrust::device_vector<T> &d_vec, const std::string &what)
+{
+    std::cout << what << ": ";
+    thrust::copy(d_vec.begin(), d_vec.end(), std::ostream_iterator<T>(std::cout, " "));
+    std::cout << std::endl;
 }

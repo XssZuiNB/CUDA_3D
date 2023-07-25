@@ -63,31 +63,35 @@ bool realsense_device::find_device()
 
 bool realsense_device::start_stream()
 {
-    m_pipe_line.start(m_config);
-
-    /* Warm up Camera and get frame profiles of both color and depth frame*/
-    while (!m_depth_profile || !m_color_profile)
+    if (!m_pipe_line_active)
     {
-        auto frames = m_pipe_line.wait_for_frames(); // Wait for next set of frames from the camera
+        m_pipe_line.start(m_config);
+        m_pipe_line_active = true;
 
-        if (frames.size() == 1)
+        /* Warm up Camera and get frame profiles of both color and depth frame*/
+        while (!m_depth_profile || !m_color_profile)
         {
-            if (frames.get_profile().stream_type() == RS2_STREAM_COLOR)
+            auto frames =
+                m_pipe_line.wait_for_frames(); // Wait for next set of frames from the camera
+
+            if (frames.size() == 1)
             {
-                m_color_profile = frames.get_color_frame().get_profile();
+                if (frames.get_profile().stream_type() == RS2_STREAM_COLOR)
+                {
+                    m_color_profile = frames.get_color_frame().get_profile();
+                }
+                else
+                {
+                    m_depth_profile = frames.get_depth_frame().get_profile();
+                }
             }
             else
             {
+                m_color_profile = frames.get_color_frame().get_profile();
                 m_depth_profile = frames.get_depth_frame().get_profile();
             }
         }
-        else
-        {
-            m_color_profile = frames.get_color_frame().get_profile();
-            m_depth_profile = frames.get_depth_frame().get_profile();
-        }
     }
-
     return true;
 }
 
@@ -154,19 +158,13 @@ gca::extrinsics realsense_device::read_depth_to_color_extrinsics()
 void realsense_device::receive_data_from_device()
 {
     auto frames = m_pipe_line.wait_for_frames();
+    if (frames.size() == 1)
+    {
+        std::cout << RED << "BAD FRAMES!" << std::endl;
+    }
 
-    m_rs_color = frames.get_color_frame();
-    m_rs_depth = frames.get_depth_frame();
-}
-
-const void *realsense_device::set_color_raw_data()
-{
-    return (void *)m_rs_color.get_data();
-}
-
-const void *realsense_device::set_depth_raw_data()
-{
-    return (void *)m_rs_depth.get_data();
+    m_color_raw_data = frames.get_color_frame().get_data();
+    m_depth_raw_data = frames.get_depth_frame().get_data();
 }
 
 cv::Mat realsense_device::set_color_to_cv_mat()
@@ -202,5 +200,19 @@ cv::Mat realsense_device::set_depth_to_cv_mat()
     }
 
     return tmp;
+}
+
+void realsense_device::stop_stream()
+{
+    if (m_pipe_line_active)
+    {
+        m_pipe_line.stop();
+        m_pipe_line_active = false;
+    }
+}
+
+realsense_device::~realsense_device()
+{
+    stop_stream();
 }
 } // namespace gca

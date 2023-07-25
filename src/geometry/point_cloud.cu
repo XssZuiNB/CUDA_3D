@@ -4,6 +4,7 @@
 #include <thrust/device_vector.h>
 #include <vector>
 
+#include "geometry/cuda_grid_radius_outliers_removal.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/geometry_util.cuh"
 #include "geometry/point_cloud.hpp"
@@ -27,27 +28,34 @@ point_cloud &point_cloud::operator=(const point_cloud &other)
     return *this;
 }
 
-std::vector<point_t> point_cloud::download() const
+std::vector<gca::point_t> point_cloud::download() const
 {
-    std::vector<point_t> temp(m_points.size());
+    std::vector<gca::point_t> temp(m_points.size());
     cudaMemcpy(temp.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
                cudaMemcpyDefault);
     return temp;
 }
-void point_cloud::download(std::vector<point_t> &dst) const
+void point_cloud::download(std::vector<gca::point_t> &dst) const
 {
     dst.resize(m_points.size());
     cudaMemcpy(dst.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
                cudaMemcpyDefault);
 }
 
-float3 point_cloud::compute_min_bound()
+bool point_cloud::compute_min_max_bound()
 {
-    return cuda_compute_min_bound(m_points);
-}
-float3 point_cloud::compute_max_bound()
-{
-    return cuda_compute_max_bound(m_points);
+    auto min_max_bound = cuda_compute_min_max_bound(m_points);
+    auto err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW << "Compute min and max bound for the point cloud failed!" << std::endl;
+        m_has_bound = false;
+        return false;
+    }
+    m_min_bound = thrust::get<0>(min_max_bound);
+    m_max_bound = thrust::get<1>(min_max_bound);
+    m_has_bound = true;
+    return true;
 }
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
@@ -61,16 +69,25 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
         return output;
     }
 
-    auto min_bound_coordinates = compute_min_bound();
-    auto max_bound_coordinates = compute_max_bound();
+    if (!m_has_bound)
+    {
+        if (!compute_min_max_bound())
+        {
+            std::cout
+                << YELLOW
+                << "Compute bound of point cloud is not possible, a empty point cloud returned!"
+                << std::endl;
+            return output;
+        }
+    }
 
-    const auto voxel_grid_min_bound = make_float3(min_bound_coordinates.x - voxel_size * 0.5,
-                                                  min_bound_coordinates.y - voxel_size * 0.5,
-                                                  min_bound_coordinates.z - voxel_size * 0.5);
+    const auto voxel_grid_min_bound =
+        make_float3(m_min_bound.x - voxel_size * 0.5, m_min_bound.y - voxel_size * 0.5,
+                    m_min_bound.z - voxel_size * 0.5);
 
-    const auto voxel_grid_max_bound = make_float3(max_bound_coordinates.x + voxel_size * 0.5,
-                                                  max_bound_coordinates.y + voxel_size * 0.5,
-                                                  max_bound_coordinates.z + voxel_size * 0.5);
+    const auto voxel_grid_max_bound =
+        make_float3(m_max_bound.x + voxel_size * 0.5, m_max_bound.y + voxel_size * 0.5,
+                    m_max_bound.z + voxel_size * 0.5);
 
     if (voxel_size * std::numeric_limits<int>::max() <
         max(max(voxel_grid_max_bound.x - voxel_grid_min_bound.x,
@@ -87,7 +104,58 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
     if (err != ::cudaSuccess)
     {
         std::cout << YELLOW
-                  << "Compute voxel grid down sample failed, a empty point cloud returned! \n"
+                  << "Compute voxel grid down sample failed, a invalid point cloud returned! \n"
+                  << std::endl;
+        return output;
+    }
+
+    return output;
+}
+
+std::shared_ptr<point_cloud> point_cloud::radius_outlier_removal(
+    float radius, gca::counter_t min_neighbors_in_radius)
+{
+    auto output = std::make_shared<point_cloud>(m_points.size());
+
+    if (radius <= 0.0)
+    {
+        std::cout << YELLOW << "Radius is less than 0, a empty point cloud returned!" << std::endl;
+        return output;
+    }
+
+    if (!m_has_bound)
+    {
+        if (!compute_min_max_bound())
+        {
+            std::cout
+                << YELLOW
+                << "Compute bound of point cloud is not possible, a empty point cloud returned!"
+                << std::endl;
+            return output;
+        }
+    }
+
+    const auto grid_cells_min_bound =
+        make_float3(m_min_bound.x - radius, m_min_bound.y - radius, m_min_bound.z - radius);
+
+    const auto grid_cells_max_bound =
+        make_float3(m_max_bound.x + radius, m_max_bound.y + radius, m_max_bound.z + radius);
+
+    if (radius * 2 * std::numeric_limits<int>::max() <
+        max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
+                grid_cells_max_bound.y - grid_cells_min_bound.y),
+            grid_cells_max_bound.z - grid_cells_min_bound.z))
+    {
+        std::cout << YELLOW << "Radius is too small, a empty point cloud returned!" << std::endl;
+        return output;
+    }
+
+    auto err =
+        cuda_grid_radius_outliers_removal(output->m_points, m_points, grid_cells_min_bound,
+                                          grid_cells_max_bound, radius, min_neighbors_in_radius);
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW << "Radius outlier removal failed, a invalid point cloud returned! \n"
                   << std::endl;
         return output;
     }
@@ -113,8 +181,11 @@ std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth
         return pc;
     }
 
-    cuda_make_point_cloud(pc->m_points, depth, color, param, threshold_min_in_meter,
-                          threshold_max_in_meter);
+    if (!cuda_make_point_cloud(pc->m_points, depth, color, param, threshold_min_in_meter,
+                               threshold_max_in_meter))
+        std::cout << YELLOW << "CUDA can't make a point cloud, A empty point cloud returned! \n"
+                  << std::endl;
+
     return pc;
 }
 } // namespace gca

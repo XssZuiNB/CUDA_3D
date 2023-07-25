@@ -30,16 +30,15 @@ public:
         return *this;
     }
 
-    ~realsense_device() = default;
+    ~realsense_device();
 
 private:
     rs2::device m_device;
     rs2::config m_config;
     rs2::pipeline m_pipe_line;
+    bool m_pipe_line_active = false;
     rs2::stream_profile m_color_profile;
     rs2::stream_profile m_depth_profile;
-    rs2::frame m_rs_color;
-    rs2::frame m_rs_depth;
 
 private:
     bool find_device() final;
@@ -50,9 +49,8 @@ private:
     gca::extrinsics read_color_to_depth_extrinsics() final;
     gca::extrinsics read_depth_to_color_extrinsics() final;
     void receive_data_from_device() final;
-    const void *set_color_raw_data() final;
-    const void *set_depth_raw_data() final;
     cv::Mat set_color_to_cv_mat() final;
     cv::Mat set_depth_to_cv_mat() final;
+    void stop_stream() final;
 };
 } // namespace gca

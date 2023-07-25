@@ -10,6 +10,7 @@
 
 namespace gca
 {
+/************************** Compute min and max bound of a point cloud **************************/
 struct min_bound_functor
 {
     __forceinline__ __device__ gca::point_t operator()(const gca::point_t &first,
@@ -49,55 +50,6 @@ struct min_max_bound_functor
     }
 };
 
-struct compute_voxel_key_functor
-{
-    compute_voxel_key_functor(const float3 &voxel_grid_min_bound, const float voxel_size)
-        : m_voxel_grid_min_bound(voxel_grid_min_bound)
-        , m_voxel_size(voxel_size)
-    {
-    }
-
-    const float3 m_voxel_grid_min_bound;
-    const float m_voxel_size;
-
-    __forceinline__ __device__ int3 operator()(const gca::point_t &point)
-    {
-        int3 ref_coord;
-        ref_coord.x =
-            __float2int_rd((point.coordinates.x - m_voxel_grid_min_bound.x) / m_voxel_size);
-        ref_coord.y =
-            __float2int_rd((point.coordinates.y - m_voxel_grid_min_bound.y) / m_voxel_size);
-        ref_coord.z =
-            __float2int_rd((point.coordinates.z - m_voxel_grid_min_bound.z) / m_voxel_size);
-        return ref_coord;
-    }
-};
-
-struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bool>
-{
-    __forceinline__ __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
-    {
-        if (lhs.x != rhs.x)
-            return lhs.x < rhs.x;
-
-        else if (lhs.y != rhs.y)
-            return lhs.y < rhs.y;
-
-        else if (lhs.z != rhs.z)
-            return lhs.z < rhs.z;
-
-        return false;
-    }
-};
-
-struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
-{
-    __forceinline__ __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
-    {
-        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
-    }
-};
-
 __forceinline__ float3 cuda_compute_min_bound(const thrust::device_vector<gca::point_t> &points)
 {
     gca::point_t init{.coordinates{.x = FLT_MAX, .y = FLT_MAX, .z = FLT_MAX}};
@@ -128,18 +80,23 @@ __forceinline__ thrust::tuple<float3, float3> cuda_compute_min_max_bound(
                               thrust::get<1>(result).coordinates);
 }
 
-__forceinline__ ::cudaError_t cuda_compute_voxel_keys(
-    thrust::device_vector<int3> &keys, const thrust::device_vector<gca::point_t> &points,
-    const float3 &voxel_grid_min_bound, const float voxel_size)
+/******************************* Functor check if a point is valid ******************************/
+struct check_is_valid_point_functor
 {
-    if (keys.size() != points.size())
+    __forceinline__ __device__ bool operator()(gca::point_t p)
     {
-        return ::cudaErrorInvalidValue;
+        return p.property != gca::point_property::invalid;
     }
+};
 
-    thrust::transform(points.begin(), points.end(), keys.begin(),
-                      compute_voxel_key_functor(voxel_grid_min_bound, voxel_size));
+__forceinline__ void remove_invalid_points(thrust::device_vector<gca::point_t> &points)
+{
+    thrust::device_vector<gca::point_t> temp(points.size());
+    auto new_size = thrust::copy_if(points.begin(), points.end(), temp.begin(),
+                                    check_is_valid_point_functor()) -
+                    temp.begin();
+    temp.resize(new_size);
 
-    return cudaGetLastError();
+    points.swap(temp);
 }
 } // namespace gca

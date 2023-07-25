@@ -175,6 +175,9 @@ struct color4
     uint32_t a = 255;
 };
 
+typedef int32_t index_t;
+typedef int32_t counter_t;
+
 struct __align__(16) point_t
 {
     float3 coordinates;
@@ -183,4 +186,17 @@ struct __align__(16) point_t
     uint32_t b;
     point_property property;
 };
+
+struct __align__(16) grid_cell_t
+{
+    index_t start_index;
+    counter_t points_number = 0;
+    friend std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell);
+};
+
+inline std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell)
+{
+    os << "Start Index: " << cell.start_index << ", Points Number: " << cell.points_number;
+    return os;
+}
 } // namespace gca

@@ -173,26 +173,6 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     }
 }
 
-/******************************* Functor check if a point is valid ******************************/
-struct check_is_valid_point_functor
-{
-    __host__ __device__ __forceinline__ bool operator()(gca::point_t p)
-    {
-        return p.property != gca::point_property::invalid;
-    }
-};
-
-__forceinline__ static void remove_invalid_points(thrust::device_vector<gca::point_t> &result)
-{
-    thrust::device_vector<gca::point_t> temp(result.size());
-    auto new_size = thrust::copy_if(result.begin(), result.end(), temp.begin(),
-                                    check_is_valid_point_functor()) -
-                    temp.begin();
-    temp.resize(new_size);
-
-    result.swap(temp);
-}
-
 /************************* For Debug, not be used in point cloud class **************************/
 bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
                            const gca::cuda_depth_frame &cuda_depth_container,
@@ -265,7 +245,9 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
         result.data().get(), width, height, cuda_depth_container.data(),
         cuda_color_container.data(), depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter, threshold_max_in_meter, true);
+        depth_scale, threshold_min_in_meter,
+        threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
+                                 // is needed
 
     if (cudaDeviceSynchronize() != ::cudaSuccess)
         return false;
@@ -277,6 +259,55 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
 
 /****************** Voxel grid Downsampling with Eigen Vector3f as coordinates ******************/
 /**************************** Useful functors for thrust algorithms  ****************************/
+
+struct compute_voxel_key_functor
+{
+    compute_voxel_key_functor(const float3 &voxel_grid_min_bound, const float voxel_size)
+        : m_voxel_grid_min_bound(voxel_grid_min_bound)
+        , m_voxel_size(voxel_size)
+    {
+    }
+
+    const float3 m_voxel_grid_min_bound;
+    const float m_voxel_size;
+
+    __forceinline__ __device__ int3 operator()(const gca::point_t &point)
+    {
+        int3 ref_coord;
+        ref_coord.x =
+            __float2int_rd((point.coordinates.x - m_voxel_grid_min_bound.x) / m_voxel_size);
+        ref_coord.y =
+            __float2int_rd((point.coordinates.y - m_voxel_grid_min_bound.y) / m_voxel_size);
+        ref_coord.z =
+            __float2int_rd((point.coordinates.z - m_voxel_grid_min_bound.z) / m_voxel_size);
+        return ref_coord;
+    }
+};
+
+struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bool>
+{
+    __forceinline__ __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
+    {
+        if (lhs.x != rhs.x)
+            return lhs.x < rhs.x;
+
+        else if (lhs.y != rhs.y)
+            return lhs.y < rhs.y;
+
+        else if (lhs.z != rhs.z)
+            return lhs.z < rhs.z;
+
+        return false;
+    }
+};
+
+struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
+{
+    __forceinline__ __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
+    {
+        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+    }
+};
 
 struct add_points_functor
 {
@@ -299,7 +330,7 @@ struct add_points_functor
 struct compute_points_mean_functor
 {
     __forceinline__ __device__ gca::point_t operator()(const gca::point_t &points_sum,
-                                                       const uint32_t n)
+                                                       const gca::counter_t n)
     {
         return gca::point_t{.coordinates{
                                 .x = points_sum.coordinates.x / n,
@@ -326,7 +357,6 @@ struct compute_points_mean_functor
     }
 
     thrust::device_vector<int3> keys(n_points);
-
     thrust::transform(src_points.begin(), src_points.end(), keys.begin(),
                       compute_voxel_key_functor(voxel_grid_min_bound, voxel_size));
     auto err = cudaGetLastError();
@@ -335,7 +365,7 @@ struct compute_points_mean_functor
         return err;
     }
 
-    thrust::device_vector<size_t> index_vec(n_points);
+    thrust::device_vector<gca::index_t> index_vec(n_points);
     thrust::sequence(index_vec.begin(), index_vec.end());
     thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
     auto get_point_with_sorted_index_iter =
@@ -345,9 +375,6 @@ struct compute_points_mean_functor
     {
         return err;
     }
-
-    thrust::device_vector<uint32_t> points_counter_per_voxel(n_points, 1);
-    thrust::device_vector<uint32_t> result_points_counter(n_points);
 
     auto end_iter_of_points =
         thrust::reduce_by_key(keys.begin(), keys.end(), get_point_with_sorted_index_iter,
@@ -360,9 +387,10 @@ struct compute_points_mean_functor
         return err;
     }
 
+    thrust::device_vector<gca::counter_t> points_counter_per_voxel(n_points, 1);
     auto end_iter_of_points_counter =
         thrust::reduce_by_key(keys.begin(), keys.end(), points_counter_per_voxel.begin(),
-                              thrust::make_discard_iterator(), result_points_counter.begin(),
+                              thrust::make_discard_iterator(), points_counter_per_voxel.begin(),
                               voxel_key_equal_functor())
             .second;
     err = cudaGetLastError();
@@ -372,15 +400,15 @@ struct compute_points_mean_functor
     }
 
     auto new_n_points = end_iter_of_points - result_points.begin();
-    if (new_n_points != (end_iter_of_points_counter - result_points_counter.begin()))
+    if (new_n_points != (end_iter_of_points_counter - points_counter_per_voxel.begin()))
     {
         return ::cudaErrorInvalidValue;
     }
 
     result_points.resize(new_n_points);
-    result_points_counter.resize(new_n_points);
+    points_counter_per_voxel.resize(new_n_points);
 
-    thrust::transform(result_points.begin(), result_points.end(), result_points_counter.begin(),
+    thrust::transform(result_points.begin(), result_points.end(), points_counter_per_voxel.begin(),
                       result_points.begin(), compute_points_mean_functor());
     if (err != ::cudaSuccess)
     {
