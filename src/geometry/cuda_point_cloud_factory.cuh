@@ -24,9 +24,4 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
                            const gca::cuda_color_frame &cuda_color_container,
                            const gca::cuda_camera_param &param, float threshold_min_in_meter,
                            float threshold_max_in_meter);
-
-::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
-                                         const thrust::device_vector<gca::point_t> &src_points,
-                                         const float3 &point_cloud_min_bound,
-                                         const float voxel_size);
 } // namespace gca

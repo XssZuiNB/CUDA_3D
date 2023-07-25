@@ -4,8 +4,6 @@
 #include <cuda_runtime_api.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
-#include <thrust/extrema.h>
-#include <thrust/gather.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
@@ -134,7 +132,17 @@ struct check_if_enough_radius_nn_functor
     __forceinline__ __device__ bool operator()(gca::point_t point)
     {
         auto grid_cell = m_compute_grid_cell(point);
-
+        /* 1. Devide a grid cell into 8 little cubes
+         * 2. Check in which cube the point is
+         * 3. Which other grid cells should be considered depend on the point's position
+         * 4. Because of this max. only 8 grid cells need to be considered. Comparing to the
+         *    other grid cell approach implementation (27 grid cells) ist more than 3 times less
+         *    iterations in for loop.
+         * 5. The result of this implementation shows more than 3 times faster than other CUDA
+         *    implementation and more than 100 times faster than PCL CPU implementaion.
+         * 6. This implementation is first version and still not perfect, there are also
+         *    possibilities to optimize it.
+         */
         auto min_x_this_grid_cell = m_grid_cell_size * grid_cell.x + m_grid_cells_min_bound.x;
         gca::index_t ix_begin =
             (grid_cell.x == 0 || (point.coordinates.x - min_x_this_grid_cell) >= m_radius) ? 0 : -1;
@@ -305,7 +313,6 @@ cudaError_t cuda_grid_radius_outliers_removal(thrust::device_vector<gca::point_t
     /* 2. For each point, compute euclidean distances between the point and all the points in
      * neighbor grids to check if they are in the radius of the point. Euclidean distance
      * requires sqrt, which might be slow, so here instead it square number are used */
-    auto start = std::chrono::steady_clock::now();
     auto end_iter_result_points =
         thrust::copy_if(src_points.begin(), src_points.end(), result_points.begin(),
                         check_if_enough_radius_nn_functor(
@@ -317,11 +324,6 @@ cudaError_t cuda_grid_radius_outliers_removal(thrust::device_vector<gca::point_t
     {
         return err;
     }
-
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "Time in microseconds: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
 
     result_points.resize(end_iter_result_points - result_points.begin());
     return ::cudaSuccess;

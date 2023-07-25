@@ -185,7 +185,19 @@ struct __align__(16) point_t
     uint32_t g;
     uint32_t b;
     point_property property;
+    friend std::ostream &operator<<(std::ostream &os, const point_t &point);
 };
+
+inline std::ostream &operator<<(std::ostream &os, const point_t &point)
+{
+    os << "Coordinates: x = " << point.coordinates.x << "\n"
+       << "             y = " << point.coordinates.y << "\n"
+       << "             z = " << point.coordinates.z << "\n"
+       << "R: " << point.r << " G: " << point.g << " B: " << point.b << "\n"
+       << "Property: " << (point.property == gca::point_property::active ? "Active" : "Inactive")
+       << "\n";
+    return os;
+}
 
 struct __align__(16) grid_cell_t
 {
@@ -196,7 +208,7 @@ struct __align__(16) grid_cell_t
 
 inline std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell)
 {
-    os << "Start Index: " << cell.start_index << ", Points Number: " << cell.points_number;
+    os << "Start Index: " << cell.start_index << ", Points Number: " << cell.points_number << "\n";
     return os;
 }
 } // namespace gca

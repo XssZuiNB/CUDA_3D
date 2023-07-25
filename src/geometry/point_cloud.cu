@@ -6,6 +6,7 @@
 
 #include "geometry/cuda_grid_radius_outliers_removal.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
+#include "geometry/cuda_voxel_grid_down_sample.cuh"
 #include "geometry/geometry_util.cuh"
 #include "geometry/point_cloud.hpp"
 #include "util/console_color.hpp"

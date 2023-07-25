@@ -68,10 +68,8 @@ int main(int argc, char *argv[])
 
         auto pc_downsampling = pc->voxel_grid_down_sample(0.03f);
         auto start = std::chrono::steady_clock::now();
-        auto pc_remove_noise = pc_downsampling->radius_outlier_removal(0.06, 7);
-
+        auto pc_remove_noise = pc_downsampling->radius_outlier_removal(0.05, 8);
         auto end = std::chrono::steady_clock::now();
-
         std::cout << "GPU Voxel : " << pc_downsampling->points_number() << std::endl;
         std::cout << "GPU radius outlier removal : " << pc_remove_noise->points_number()
                   << std::endl;
@@ -98,8 +96,9 @@ int main(int argc, char *argv[])
 
         pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
         sor_radius.setInputCloud(cloud);
-        sor_radius.setRadiusSearch(0.06);
-        sor_radius.setMinNeighborsInRadius(7);
+        sor_radius.setRadiusSearch(0.05);
+        sor_radius.setMinNeighborsInRadius(8);
+
         sor_radius.filter(*cloud_filtered);
 
         /*
@@ -116,7 +115,7 @@ int main(int argc, char *argv[])
                                         sor.setLeafSize(0.02f, 0.02f, 0.02f);
                                         sor.filter(*cloud_filtered);
                                 */
-        viewer.showCloud(cloud);
+        viewer.showCloud(cloud_filtered);
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;
@@ -124,7 +123,7 @@ int main(int argc, char *argv[])
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
-        std::cout << "Points number: " << cloud_filtered->size() << std::endl;
+        std::cout << "Points number PCL filter: " << cloud_filtered->size() << std::endl;
         // std::cout << cloud_filtered->size() << std::endl;
         std::cout << "__________________________________________________" << std::endl;
     }
