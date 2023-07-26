@@ -6,6 +6,7 @@
 #include <thrust/device_vector.h>
 
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 
 __forceinline__ static int div_up(int total, int grain)
@@ -47,6 +48,15 @@ __forceinline__ static void check_cuda_error(cudaError_t err, const char *file, 
         throw std::runtime_error(std::string(file) + ":" + std::to_string(line) + ": " +
                                  cudaGetErrorString(err));
     }
+}
+
+#define MAX_STREAMS 8
+inline cudaStream_t get_stream(uint8_t i)
+{
+    static std::once_flag streamInitFlags[MAX_STREAMS];
+    static cudaStream_t streams[MAX_STREAMS];
+    std::call_once(streamInitFlags[i], [i]() { cudaStreamCreate(&(streams[i])); });
+    return streams[i];
 }
 
 template <typename T>

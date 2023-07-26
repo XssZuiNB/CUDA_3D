@@ -60,21 +60,21 @@ int main(int argc, char *argv[])
 
         auto color = rs_cam.get_color_raw_data();
         auto depth = rs_cam.get_depth_raw_data();
-
+        auto start = std::chrono::steady_clock::now();
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
 
         auto pc = gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.5, 10.0);
 
         auto pc_downsampling = pc->voxel_grid_down_sample(0.03f);
-        auto start = std::chrono::steady_clock::now();
-        auto pc_remove_noise = pc_downsampling->radius_outlier_removal(0.05, 8);
+
+        auto pc_remove_noise = pc_downsampling->radius_outlier_removal(0.06, 8);
         auto end = std::chrono::steady_clock::now();
         std::cout << "GPU Voxel : " << pc_downsampling->points_number() << std::endl;
         std::cout << "GPU radius outlier removal : " << pc_remove_noise->points_number()
                   << std::endl;
 
-        auto points = pc_downsampling->download();
+        auto points = pc_remove_noise->download();
 
         auto number_of_points = points.size();
         cloud->points.resize(number_of_points);
@@ -90,32 +90,32 @@ int main(int argc, char *argv[])
             p.b = points[i].b;
             cloud->points[i] = p;
         }
-
-        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
-            new pcl::PointCloud<pcl::PointXYZRGBA>);
-
-        pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
-        sor_radius.setInputCloud(cloud);
-        sor_radius.setRadiusSearch(0.05);
-        sor_radius.setMinNeighborsInRadius(8);
-
-        sor_radius.filter(*cloud_filtered);
-
         /*
-                                                pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA>
-                   sor_statistical; sor_statistical.setInputCloud(cloud);
-           sor_statistical.setMeanK(10); sor_statistical.setStddevMulThresh(1.0);
-                                                sor_statistical.filter(*cloud_filtered);
+                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
+                    new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+                pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
+                sor_radius.setInputCloud(cloud);
+                sor_radius.setRadiusSearch(0.06);
+                sor_radius.setMinNeighborsInRadius(8);
+
+                sor_radius.filter(*cloud_filtered);
+
+
+                                                        pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA>
+                           sor_statistical; sor_statistical.setInputCloud(cloud);
+                   sor_statistical.setMeanK(10); sor_statistical.setStddevMulThresh(1.0);
+                                                        sor_statistical.filter(*cloud_filtered);
 
 
 
 
-                                        pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
-                                        sor.setInputCloud(cloud);
-                                        sor.setLeafSize(0.02f, 0.02f, 0.02f);
-                                        sor.filter(*cloud_filtered);
-                                */
-        viewer.showCloud(cloud_filtered);
+                                                pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+                                                sor.setInputCloud(cloud);
+                                                sor.setLeafSize(0.02f, 0.02f, 0.02f);
+                                                sor.filter(*cloud_filtered);
+                                        */
+        viewer.showCloud(cloud);
         std::cout << "Time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
-        std::cout << "Points number PCL filter: " << cloud_filtered->size() << std::endl;
+        std::cout << "Points number PCL filter: " << cloud->size() << std::endl;
         // std::cout << cloud_filtered->size() << std::endl;
         std::cout << "__________________________________________________" << std::endl;
     }

@@ -62,7 +62,7 @@ __forceinline__ float3 cuda_compute_max_bound(const thrust::device_vector<gca::p
     return thrust::reduce(points.begin(), points.end(), init, max_bound_functor()).coordinates;
 }
 
-__forceinline__ thrust::tuple<float3, float3> cuda_compute_min_max_bound(
+__forceinline__ thrust::pair<float3, float3> cuda_compute_min_max_bound(
     const thrust::device_vector<gca::point_t> &points)
 {
     gca::point_t init_min{.coordinates{.x = FLT_MAX, .y = FLT_MAX, .z = FLT_MAX}};
@@ -76,8 +76,8 @@ __forceinline__ thrust::tuple<float3, float3> cuda_compute_min_max_bound(
 
     auto result =
         thrust::reduce(zipped_iter_begin, zipped_iter_end, zipped_init, min_max_bound_functor());
-    return thrust::make_tuple(thrust::get<0>(result).coordinates,
-                              thrust::get<1>(result).coordinates);
+    return thrust::make_pair(thrust::get<0>(result).coordinates,
+                             thrust::get<1>(result).coordinates);
 }
 
 /******************************* Functor check if a point is valid ******************************/

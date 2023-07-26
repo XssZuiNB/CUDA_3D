@@ -22,6 +22,8 @@ public:
     std::vector<point_t> download() const;
 
     bool compute_min_max_bound();
+    float3 get_min_bound();
+    float3 get_max_bound();
 
     __host__ __device__ bool has_points() const
     {

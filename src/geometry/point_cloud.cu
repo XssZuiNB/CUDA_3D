@@ -53,10 +53,44 @@ bool point_cloud::compute_min_max_bound()
         m_has_bound = false;
         return false;
     }
-    m_min_bound = thrust::get<0>(min_max_bound);
-    m_max_bound = thrust::get<1>(min_max_bound);
+    m_min_bound = min_max_bound.first;
+    m_max_bound = min_max_bound.second;
     m_has_bound = true;
     return true;
+}
+
+float3 point_cloud::get_min_bound()
+{
+    if (m_has_bound)
+    {
+        return m_min_bound;
+    }
+
+    if (!compute_min_max_bound())
+    {
+        std::cout << YELLOW
+                  << "Compute bound of point cloud is not possible, invalid bound is returned!"
+                  << std::endl;
+        return make_float3(0.0, 0.0, 0.0);
+    }
+    return m_min_bound;
+}
+
+float3 point_cloud::get_max_bound()
+{
+    if (m_has_bound)
+    {
+        return m_max_bound;
+    }
+
+    if (!compute_min_max_bound())
+    {
+        std::cout << YELLOW
+                  << "Compute bound of point cloud is not possible, invalid bound is returned!"
+                  << std::endl;
+        return make_float3(0.0, 0.0, 0.0);
+    }
+    return m_max_bound;
 }
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
