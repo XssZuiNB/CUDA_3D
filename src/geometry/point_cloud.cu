@@ -4,7 +4,7 @@
 #include <thrust/device_vector.h>
 #include <vector>
 
-#include "geometry/cuda_grid_radius_outliers_removal.cuh"
+#include "geometry/cuda_nn_search.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/cuda_voxel_grid_down_sample.cuh"
 #include "geometry/geometry_util.cuh"
@@ -43,9 +43,9 @@ void point_cloud::download(std::vector<gca::point_t> &dst) const
                cudaMemcpyDefault);
 }
 
-bool point_cloud::compute_min_max_bound()
+bool point_cloud::compute_min_max_bound(::cudaStream_t stream)
 {
-    auto min_max_bound = cuda_compute_min_max_bound(m_points);
+    auto min_max_bound = cuda_compute_min_max_bound(m_points, stream);
     auto err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
@@ -93,7 +93,8 @@ float3 point_cloud::get_max_bound()
     return m_max_bound;
 }
 
-std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
+std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size,
+                                                                 ::cudaStream_t stream)
 {
     auto output = std::make_shared<point_cloud>(m_points.size());
 
@@ -106,7 +107,7 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
 
     if (!m_has_bound)
     {
-        if (!compute_min_max_bound())
+        if (!compute_min_max_bound(stream))
         {
             std::cout
                 << YELLOW
@@ -134,8 +135,8 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
         return output;
     }
 
-    auto err =
-        cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound, voxel_size);
+    auto err = cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound,
+                                          voxel_size, stream);
     if (err != ::cudaSuccess)
     {
         std::cout << YELLOW

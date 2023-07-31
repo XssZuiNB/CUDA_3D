@@ -11,7 +11,9 @@ class realsense_device final : public gca::device
 public:
     realsense_device();
 
-    realsense_device(uint32_t width, uint32_t height, uint8_t fps,
+    realsense_device(size_t device_id);
+
+    realsense_device(size_t device_id, uint32_t width, uint32_t height, uint8_t fps,
                      gca::frame_format color_format = BGR8, gca::frame_format depth_format = Z16);
 
     realsense_device(const realsense_device &) = delete;
@@ -39,6 +41,7 @@ private:
     bool m_pipe_line_active = false;
     rs2::stream_profile m_color_profile;
     rs2::stream_profile m_depth_profile;
+    uint32_t m_device_id;
 
 private:
     bool find_device() final;

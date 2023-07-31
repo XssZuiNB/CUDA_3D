@@ -149,9 +149,9 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
             p.coordinates.z = depth_xyz[2];
 
             const int color_index = 3 * (target_y * width + target_x);
-            p.b = color_frame_data[color_index + 0];
-            p.g = color_frame_data[color_index + 1];
-            p.r = color_frame_data[color_index + 2];
+            p.color.b = float(color_frame_data[color_index + 0]) / 255;
+            p.color.g = float(color_frame_data[color_index + 1]) / 255;
+            p.color.r = float(color_frame_data[color_index + 2]) / 255;
 
             p.property = gca::point_property::inactive;
 

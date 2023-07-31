@@ -13,4 +13,9 @@ namespace gca
     const thrust::device_vector<gca::point_t> &points_Q,
     const thrust::device_vector<gca::point_t> &points_R, float3 min_bound, const float3 max_bound,
     const float search_radius);
+
+::cudaError_t cuda_grid_radius_outliers_removal(
+    thrust::device_vector<gca::point_t> &result_points,
+    const thrust::device_vector<gca::point_t> &src_points, const float3 min_bound,
+    const float3 max_bound, const float radius, const gca::counter_t min_neighbors_in_radius);
 }

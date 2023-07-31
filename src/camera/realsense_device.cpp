@@ -6,13 +6,19 @@
 namespace gca
 {
 realsense_device::realsense_device()
-    : realsense_device::realsense_device(640, 480, 30)
+    : realsense_device::realsense_device(0, 640, 480, 30)
 {
 }
 
-realsense_device::realsense_device(uint32_t width, uint32_t height, uint8_t fps,
+realsense_device::realsense_device(size_t device_id)
+    : realsense_device::realsense_device(device_id, 640, 480, 30)
+{
+}
+
+realsense_device::realsense_device(size_t device_id, uint32_t width, uint32_t height, uint8_t fps,
                                    gca::frame_format color_format, gca::frame_format depth_format)
-    : device(width, height, fps, color_format, depth_format)
+    : m_device_id(device_id)
+    , device(width, height, fps, color_format, depth_format)
 {
     auto realsense_color_format = RS2_FORMAT_BGR8;
     auto realsense_depth_format = RS2_FORMAT_Z16;
@@ -47,12 +53,14 @@ bool realsense_device::find_device()
     rs2::context ctx;
     auto list = ctx.query_devices();
 
-    if (list.size() == 0)
+    auto n_device = list.size();
+
+    if (n_device == 0 || n_device <= m_device_id)
     {
         return false;
     }
 
-    m_device = list.front(); // TODO: Always get the first device, could be changed
+    m_device = list[m_device_id]; // TODO: Always get the first device, could be changed
 
     m_config.enable_device(m_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
 

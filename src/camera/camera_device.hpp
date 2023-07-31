@@ -30,7 +30,7 @@ public:
         {
             if (!find_device())
             {
-                std::cout << RED << "Didn't find a camera!" << std::endl;
+                std::cout << RED << "Didn't find the camera!" << std::endl;
                 return false;
             }
             std::cout << D_GREEN << "Found camera! Name: " << m_device_name << std::endl;
