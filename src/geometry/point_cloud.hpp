@@ -1,11 +1,12 @@
 #pragma once
 
-#include <memory>
-#include <thrust/device_vector.h>
-#include <vector>
-
 #include "cuda_container/cuda_container.hpp"
 #include "geometry/type.hpp"
+
+#include <memory>
+#include <vector>
+
+#include <thrust/device_vector.h>
 
 namespace gca
 {

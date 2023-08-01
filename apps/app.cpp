@@ -1,3 +1,10 @@
+#include "camera/realsense_device.hpp"
+#include "cuda_container/cuda_container.hpp"
+#include "geometry/cuda_point_cloud_factory.cuh"
+#include "geometry/point_cloud.hpp"
+#include "geometry/type.hpp"
+#include "util/gpu_check.hpp"
+
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -12,13 +19,6 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/visualization/cloud_viewer.h>
-
-#include "camera/realsense_device.hpp"
-#include "cuda_container/cuda_container.hpp"
-#include "geometry/cuda_point_cloud_factory.cuh"
-#include "geometry/point_cloud.hpp"
-#include "geometry/type.hpp"
-#include "util/gpu_check.hpp"
 
 static bool exit_requested = false; // for ctrl+c exit
 static void exit_sig_handler(int param)

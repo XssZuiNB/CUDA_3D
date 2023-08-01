@@ -1,14 +1,15 @@
 #pragma once
 
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <memory>
-#include <thrust/device_vector.h>
-
 #include "camera/camera_param.hpp"
 #include "cuda_container/cuda_container.hpp"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+
+#include <memory>
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <thrust/device_vector.h>
 
 namespace gca
 {

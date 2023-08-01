@@ -15,70 +15,58 @@ public:
     cuda_frame<T, N_CHANNEL>()
         : m_width(0)
         , m_height(0)
-        , m_size(0)
-        , m_frame_ptr(nullptr)
+        , m_data_vec(0)
     {
     }
 
     cuda_frame<T, N_CHANNEL>(uint32_t width, uint32_t height)
         : m_width(width)
         , m_height(height)
-        , m_size(width * height * N_CHANNEL)
+        , m_data_vec(width * height * N_CHANNEL)
     {
-        auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
-        check_cuda_error(err, __FILE__, __LINE__);
     }
 
     cuda_frame<T, N_CHANNEL>(const T *frame, uint32_t width, uint32_t height)
         : m_width(width)
         , m_height(height)
-        , m_size(width * height * N_CHANNEL)
+        , m_data_vec(width * height * N_CHANNEL)
     {
-        auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
-        check_cuda_error(err, __FILE__, __LINE__);
-        err = cudaMemcpy(m_frame_ptr, frame, sizeof(T) * m_size, cudaMemcpyDefault);
+        thrust::copy(frame, frame + m_data_vec.size(), m_data_vec.begin());
+        auto err = cudaGetLastError();
         check_cuda_error(err, __FILE__, __LINE__);
     }
 
     cuda_frame<T, N_CHANNEL>(const cuda_frame<T, N_CHANNEL> &other)
         : m_width(other.m_width)
         , m_height(other.m_height)
-        , m_size(other.m_size)
+        , m_data_vec(other.m_data_vec.size())
     {
-        auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
-        check_cuda_error(err, __FILE__, __LINE__);
-        err = cudaMemcpy(m_frame_ptr, other.m_frame_ptr, sizeof(T) * m_size, cudaMemcpyDefault);
+        thrust::copy(other.m_data_vec.begin(), other.m_data_vec.end(), m_data_vec.begin());
+        auto err = cudaGetLastError();
         check_cuda_error(err, __FILE__, __LINE__);
     }
 
     cuda_frame<T, N_CHANNEL>(cuda_frame<T, N_CHANNEL> &&other) noexcept
         : m_width(other.m_width)
         , m_height(other.m_height)
-        , m_size(other.m_size)
-        , m_frame_ptr(other.m_frame_ptr)
+        , m_data_vec(0)
     {
-        other.m_frame_ptr = nullptr;
+        m_data_vec.swap(other.m_data_vec);
     }
 
     cuda_frame<T, N_CHANNEL> &operator=(const cuda_frame<T, N_CHANNEL> &other)
     {
         if (this != &other)
         {
-            auto other_size = other.m_size;
-            if (other_size != m_size)
-            {
-                m_size = other_size;
-                if (m_frame_ptr)
-                {
-                    cudaFree(m_frame_ptr);
-                }
-                auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
-                check_cuda_error(err, __FILE__, __LINE__);
-            }
+            auto other_size = other.m_data_vec.size();
+            if (other_size != m_data_vec.size())
+                m_data_vec.resize(other_size);
+
             m_width = other.m_width;
             m_height = other.m_height;
-            auto err =
-                cudaMemcpy(m_frame_ptr, other.m_frame_ptr, sizeof(T) * m_size, cudaMemcpyDefault);
+
+            thrust::copy(other.m_data_vec.begin(), other.m_data_vec.end(), m_data_vec.begin());
+            auto err = cudaGetLastError();
             check_cuda_error(err, __FILE__, __LINE__);
         }
 
@@ -89,17 +77,11 @@ public:
     {
         if (this != &other)
         {
-            if (m_frame_ptr)
-            {
-                cudaFree(m_frame_ptr);
-            }
-
             m_width = other.m_width;
             m_height = other.m_height;
-            m_size = other.m_size;
-            m_frame_ptr = other.m_frame_ptr;
-            other.m_frame_ptr = nullptr;
+            m_data_vec.swap(other.m_data_vec);
         }
+
         return *this;
     }
 
@@ -117,34 +99,27 @@ public:
     {
 
         auto new_size = width * height * N_CHANNEL;
-        if (new_size != m_size)
+        if (new_size != m_data_vec.size())
         {
-            m_size = new_size;
-            if (m_frame_ptr)
-            {
-                cudaFree(m_frame_ptr);
-            }
-            auto err = cudaMalloc(&m_frame_ptr, sizeof(T) * m_size);
-            check_cuda_error(err, __FILE__, __LINE__);
+            m_data_vec.resize(new_size);
         }
+
         m_width = width;
         m_height = height;
-        auto err = cudaMemcpy(m_frame_ptr, frame, sizeof(T) * m_size, cudaMemcpyDefault);
+
+        thrust::copy(frame, frame + new_size, m_data_vec.begin());
+        auto err = cudaGetLastError();
         check_cuda_error(err, __FILE__, __LINE__);
     }
 
-    const T *data() const
+    const thrust::device_vector<T> &get_frame_vec() const
     {
-        return m_frame_ptr;
+        return m_data_vec;
     }
 
     void clear()
     {
-        if (m_frame_ptr)
-        {
-            cudaFree(m_frame_ptr);
-            m_frame_ptr = nullptr;
-        }
+        m_data_vec.clear();
     }
 
     ~cuda_frame<T, N_CHANNEL>()
@@ -155,7 +130,6 @@ public:
 private:
     uint32_t m_width;
     uint32_t m_height;
-    size_t m_size;
-    T *m_frame_ptr;
+    thrust::device_vector<T> m_data_vec;
 };
 } // namespace gca

@@ -1,11 +1,12 @@
 #pragma once
 
-#include <iostream>
-#include <opencv4/opencv2/opencv.hpp>
-#include <string>
-
 #include "camera/camera_param.hpp"
 #include "util/console_color.hpp"
+
+#include <iostream>
+#include <string>
+
+#include <opencv4/opencv2/opencv.hpp>
 
 namespace gca
 {

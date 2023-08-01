@@ -1,3 +1,8 @@
+#include "geometry/cuda_nn_search.cuh"
+#include "geometry/geometry_util.cuh"
+#include "geometry/type.hpp"
+#include "util/cuda_util.cuh"
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -9,11 +14,6 @@
 #include <thrust/pair.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
-
-#include "geometry/cuda_nn_search.cuh"
-#include "geometry/geometry_util.cuh"
-#include "geometry/type.hpp"
-#include "util/cuda_util.cuh"
 
 namespace gca
 {

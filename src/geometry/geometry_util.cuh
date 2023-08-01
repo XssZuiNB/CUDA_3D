@@ -1,12 +1,12 @@
 #pragma once
 
+#include "geometry/type.hpp"
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <thrust/extrema.h>
 #include <thrust/tuple.h>
-
-#include "geometry/type.hpp"
 
 namespace gca
 {

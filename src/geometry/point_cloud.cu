@@ -1,15 +1,16 @@
-#include <cuda_runtime_api.h>
-#include <memory>
-#include <thrust/copy.h>
-#include <thrust/device_vector.h>
-#include <vector>
-
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/cuda_voxel_grid_down_sample.cuh"
 #include "geometry/geometry_util.cuh"
 #include "geometry/point_cloud.hpp"
 #include "util/console_color.hpp"
+
+#include <memory>
+#include <vector>
+
+#include <cuda_runtime_api.h>
+#include <thrust/copy.h>
+#include <thrust/device_vector.h>
 
 namespace gca
 {
@@ -32,15 +33,13 @@ point_cloud &point_cloud::operator=(const point_cloud &other)
 std::vector<gca::point_t> point_cloud::download() const
 {
     std::vector<gca::point_t> temp(m_points.size());
-    cudaMemcpy(temp.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
-               cudaMemcpyDefault);
+    thrust::copy(m_points.begin(), m_points.end(), temp.begin());
     return temp;
 }
 void point_cloud::download(std::vector<gca::point_t> &dst) const
 {
     dst.resize(m_points.size());
-    cudaMemcpy(dst.data(), m_points.data().get(), m_points.size() * sizeof(gca::point_t),
-               cudaMemcpyDefault);
+    thrust::copy(m_points.begin(), m_points.end(), dst.begin());
 }
 
 bool point_cloud::compute_min_max_bound(::cudaStream_t stream)

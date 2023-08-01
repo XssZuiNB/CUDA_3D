@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+
 #include <vector_types.h>
 
 namespace gca

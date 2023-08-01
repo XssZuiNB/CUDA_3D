@@ -1,3 +1,8 @@
+#include "geometry/cuda_voxel_grid_down_sample.cuh"
+#include "geometry/geometry_util.cuh"
+#include "geometry/type.hpp"
+#include "util/cuda_util.cuh"
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -8,11 +13,6 @@
 #include <thrust/iterator/permutation_iterator.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
-
-#include "geometry/cuda_voxel_grid_down_sample.cuh"
-#include "geometry/geometry_util.cuh"
-#include "geometry/type.hpp"
-#include "util/cuda_util.cuh"
 
 namespace gca
 {

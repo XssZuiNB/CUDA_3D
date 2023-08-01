@@ -1,10 +1,10 @@
 #pragma once
 
+#include "geometry/type.hpp"
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <thrust/device_vector.h>
-
-#include "geometry/type.hpp"
 
 namespace gca
 {

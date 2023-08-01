@@ -1,13 +1,13 @@
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-
 #include "camera/camera_param.hpp"
 #include "cuda_container/cuda_container.hpp"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
 
 namespace gca
 {
@@ -105,8 +105,6 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     int depth_y = blockIdx.y * blockDim.y + threadIdx.y;
     int depth_pixel_index = depth_y * width + depth_x;
 
-    // Shared memory or texture memory loading of depth_frame_data and color_frame_data
-
     if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
     {
         float depth_value;
@@ -196,9 +194,9 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
-        result_ptr.get(), width, height, cuda_depth_container.data(), cuda_color_container.data(),
-        depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr, depth_scale,
-        threshold_min_in_meter, threshold_max_in_meter);
+        result_ptr.get(), width, height, cuda_depth_container.data().data().get(),
+        cuda_color_container.data().data().get(), depth_intrin_ptr, color_intrin_ptr,
+        depth2color_extrin_ptr, depth_scale, threshold_min_in_meter, threshold_max_in_meter);
 
     if (cudaDeviceSynchronize() != cudaSuccess)
         return false;
@@ -235,9 +233,9 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
-        result.data().get(), width, height, cuda_depth_container.data(),
-        cuda_color_container.data(), depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter,
+        result.data().get(), width, height, cuda_depth_container.data().data().get(),
+        cuda_color_container.data().data().get(), depth_intrin_ptr, color_intrin_ptr,
+        depth2color_extrin_ptr, depth_scale, threshold_min_in_meter,
         threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
                                  // is needed
 
