@@ -61,7 +61,7 @@ uint32_t cuda_depth_frame::get_depth_frame_height() const
     return __m_impl->get_frame_height();
 }
 
-const thrust::device_vector<uint16_t> &cuda_depth_frame::data() const
+const thrust::device_vector<uint16_t> &cuda_depth_frame::get_depth_frame_vec() const
 {
     return __m_impl->get_frame_vec();
 }
@@ -78,7 +78,10 @@ void cuda_depth_frame::clear()
 
 cuda_depth_frame::~cuda_depth_frame()
 {
-    delete __m_impl;
+    if (__m_impl)
+    {
+        delete __m_impl;
+    }
     __m_impl = nullptr;
 }
 } // namespace gca

@@ -138,8 +138,6 @@ struct nn_search_functor
          *    iterations in for loop.
          * 5. The result of this implementation shows more than 3 times faster than other CUDA
          *    implementation and more than 100 times faster than PCL CPU implementaion.
-         * 6. This implementation is first version and still not perfect, there are also
-         *    possibilities to optimize it.
          */
         auto grid_cell = m_compute_grid_cell(point);
 
@@ -243,6 +241,7 @@ struct check_if_enough_radius_nn_functor
         , m_n_grid_cells_z(n_grid_cells_z)
         , m_grid_cell_size(grid_cell_size)
         , m_search_radius(search_radius)
+        , m_search_radius_square(search_radius * search_radius)
         , m_min_neighbors_in_radius(min_neighbors_in_radius)
         , m_compute_grid_cell(grid_cells_min_bound, grid_cell_size)
     {
@@ -257,6 +256,7 @@ struct check_if_enough_radius_nn_functor
     const gca::counter_t m_n_grid_cells_z;
     const float m_grid_cell_size;
     const float m_search_radius;
+    const float m_search_radius_square;
     const gca::counter_t m_min_neighbors_in_radius;
     const compute_grid_cell_functor m_compute_grid_cell;
 
@@ -271,8 +271,6 @@ struct check_if_enough_radius_nn_functor
          *    iterations in for loop.
          * 5. The result of this implementation shows more than 3 times faster than other CUDA
          *    implementation and more than 100 times faster than PCL CPU implementaion.
-         * 6. This implementation is first version and still not perfect, there are also
-         *    possibilities to optimize it.
          */
         auto min_x_this_grid_cell = m_grid_cell_size * grid_cell.x + m_grid_cells_min_bound.x;
         gca::index_t ix_begin =
@@ -339,14 +337,13 @@ struct check_if_enough_radius_nn_functor
                             (neighbor_point.coordinates.z - point.coordinates.z) *
                                 (neighbor_point.coordinates.z - point.coordinates.z);
 
-                        if (euclidean_distance_square < m_search_radius * m_search_radius)
+                        if (euclidean_distance_square < m_search_radius_square)
                         {
                             n_neighbors_in_radius += 1;
-                        }
-
-                        if (n_neighbors_in_radius > m_min_neighbors_in_radius)
-                        {
-                            return true;
+                            if (n_neighbors_in_radius > m_min_neighbors_in_radius)
+                            {
+                                return true;
+                            }
                         }
                     }
                 }

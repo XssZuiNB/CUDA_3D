@@ -24,7 +24,7 @@ public:
 
     void upload(const uint8_t *src, uint32_t width, uint32_t height);
 
-    const thrust::device_vector<uint8_t> &data() const;
+    const thrust::device_vector<uint8_t> &get_color_frame_vec() const;
 
     void clear();
 
@@ -51,7 +51,7 @@ public:
 
     void upload(const uint16_t *src, uint32_t width, uint32_t height);
 
-    const thrust::device_vector<uint16_t> &data() const;
+    const thrust::device_vector<uint16_t> &get_depth_frame_vec() const;
 
     void clear();
 

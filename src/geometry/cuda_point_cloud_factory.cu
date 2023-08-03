@@ -8,6 +8,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
 
 namespace gca
 {
@@ -88,6 +90,7 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     const gca::extrinsics *depth_to_color_extrin_ptr, const float depth_scale, float threshold_min,
     float threshold_max, bool if_bilateral_filter = false)
 {
+
     __shared__ gca::intrinsics depth_intrin_shared;
     __shared__ gca::intrinsics color_intrin_shared;
     __shared__ gca::extrinsics depth_to_color_extrin_shared;
@@ -108,7 +111,6 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
     {
         float depth_value;
-        // Extract depth value
         if (if_bilateral_filter)
             depth_value =
                 __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 7, 1, 50) *
@@ -122,44 +124,38 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
             return;
         }
 
-        // Calculate depth_uv and depth_xyz
         float depth_uv[2] = {depth_x - 0.5f, depth_y - 0.5f};
         float depth_xyz[3];
         __depth_uv_to_xyz(depth_uv, depth_value, depth_xyz, depth_intrin_shared);
 
-        // Calculate color_xyz
         float color_xyz[3];
         __transform_point_to_point(color_xyz, depth_xyz, depth_to_color_extrin_shared);
 
-        // Calculate color_uv
         float color_uv[2];
         __xyz_to_color_uv(color_xyz, color_uv, color_intrin_shared);
 
         const int target_x = static_cast<int>(color_uv[0] + 0.5f);
         const int target_y = static_cast<int>(color_uv[1] + 0.5f);
-
-        if (target_x >= 0 && target_x < width && target_y >= 0 && target_y < height)
-        {
-            gca::point_t p;
-
-            p.coordinates.x = depth_xyz[0];
-            p.coordinates.y = depth_xyz[1];
-            p.coordinates.z = depth_xyz[2];
-
-            const int color_index = 3 * (target_y * width + target_x);
-            p.color.b = float(color_frame_data[color_index + 0]) / 255;
-            p.color.g = float(color_frame_data[color_index + 1]) / 255;
-            p.color.r = float(color_frame_data[color_index + 2]) / 255;
-
-            p.property = gca::point_property::inactive;
-
-            point_set_out[depth_pixel_index] = p;
-        }
-        else
+        if (target_x < 0 || target_x >= width || target_y < 0 || target_y >= height)
         {
             point_set_out[depth_pixel_index].property = gca::point_property::invalid;
             return;
         }
+
+        gca::point_t p;
+
+        p.coordinates.x = depth_xyz[0];
+        p.coordinates.y = depth_xyz[1];
+        p.coordinates.z = depth_xyz[2];
+
+        const int color_index = 3 * (target_y * width + target_x);
+        p.color.b = float(color_frame_data[color_index + 0]) / 255;
+        p.color.g = float(color_frame_data[color_index + 1]) / 255;
+        p.color.r = float(color_frame_data[color_index + 2]) / 255;
+
+        p.property = gca::point_property::inactive;
+
+        point_set_out[depth_pixel_index] = p;
     }
 }
 
@@ -194,8 +190,8 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
-        result_ptr.get(), width, height, cuda_depth_container.data().data().get(),
-        cuda_color_container.data().data().get(), depth_intrin_ptr, color_intrin_ptr,
+        result_ptr.get(), width, height, cuda_depth_container.get_depth_frame_vec().data().get(),
+        cuda_color_container.get_color_frame_vec().data().get(), depth_intrin_ptr, color_intrin_ptr,
         depth2color_extrin_ptr, depth_scale, threshold_min_in_meter, threshold_max_in_meter);
 
     if (cudaDeviceSynchronize() != cudaSuccess)
@@ -207,11 +203,12 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
 }
 
 /************************** This overload is used in point cloud class **************************/
-bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
-                           const gca::cuda_depth_frame &cuda_depth_container,
-                           const gca::cuda_color_frame &cuda_color_container,
-                           const gca::cuda_camera_param &param, float threshold_min_in_meter,
-                           float threshold_max_in_meter)
+::cudaError_t cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
+                                    const gca::cuda_depth_frame &cuda_depth_container,
+                                    const gca::cuda_color_frame &cuda_color_container,
+                                    const gca::cuda_camera_param &param,
+                                    float threshold_min_in_meter, float threshold_max_in_meter,
+                                    ::cudaStream_t stream)
 {
     auto depth_intrin_ptr = param.get_depth_intrinsics_ptr();
     auto color_intrin_ptr = param.get_color_intrinsics_ptr();
@@ -219,12 +216,16 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     auto width = param.get_width();
     auto height = param.get_height();
     auto depth_scale = param.get_depth_scale();
+    auto depth_frame_cuda_ptr =
+        thrust::raw_pointer_cast(cuda_depth_container.get_depth_frame_vec().data());
+    auto color_frame_cuda_ptr =
+        thrust::raw_pointer_cast(cuda_color_container.get_color_frame_vec().data());
 
     if (!depth_intrin_ptr || !color_intrin_ptr || !depth2color_extrin_ptr || !width || !height)
-        return false;
+        return ::cudaErrorInvalidValue;
 
-    if (depth_scale - 0.0 < 0.0001)
-        return false;
+    if (depth_scale - 0.0 < 0.00001)
+        return ::cudaErrorInvalidValue;
 
     auto depth_pixel_count = width * height;
     result.resize(depth_pixel_count);
@@ -232,18 +233,22 @@ bool cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
     dim3 threads(32, 32);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
-    __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
-        result.data().get(), width, height, cuda_depth_container.data().data().get(),
-        cuda_color_container.data().data().get(), depth_intrin_ptr, color_intrin_ptr,
-        depth2color_extrin_ptr, depth_scale, threshold_min_in_meter,
+    __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads, 0, stream>>>(
+        result.data().get(), width, height, depth_frame_cuda_ptr, color_frame_cuda_ptr,
+        depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr, depth_scale,
+        threshold_min_in_meter,
         threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
                                  // is needed
 
-    if (cudaDeviceSynchronize() != ::cudaSuccess)
-        return false;
+    auto err = cudaDeviceSynchronize();
+    if (err != ::cudaSuccess)
+        return err;
 
     remove_invalid_points(result);
+    err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+        return err;
 
-    return true;
+    return ::cudaSuccess;
 }
 } // namespace gca

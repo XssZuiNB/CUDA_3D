@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <thrust/extrema.h>
+#include <thrust/remove.h>
 #include <thrust/tuple.h>
 
 namespace gca
@@ -101,11 +102,11 @@ __forceinline__ thrust::pair<float3, float3> cuda_compute_min_max_bound(
 }
 
 /******************************* Functor check if a point is valid ******************************/
-struct check_is_valid_point_functor
+struct check_is_invalid_point_functor
 {
     __forceinline__ __device__ bool operator()(gca::point_t p)
     {
-        return p.property != gca::point_property::invalid;
+        return p.property == gca::point_property::invalid;
     }
 };
 
@@ -113,14 +114,10 @@ __forceinline__ void remove_invalid_points(thrust::device_vector<gca::point_t> &
                                            ::cudaStream_t stream = cudaStreamDefault)
 {
     auto exec_policy = thrust::cuda::par.on(stream);
-
-    thrust::device_vector<gca::point_t> temp(points.size());
-    auto new_size = thrust::copy_if(exec_policy, points.begin(), points.end(), temp.begin(),
-                                    check_is_valid_point_functor()) -
-                    temp.begin();
+    auto new_size = thrust::remove_if(exec_policy, points.begin(), points.end(),
+                                      check_is_invalid_point_functor());
     cudaStreamSynchronize(stream);
 
-    temp.resize(new_size);
-    points.swap(temp);
+    points.resize(new_size - points.begin());
 }
 } // namespace gca

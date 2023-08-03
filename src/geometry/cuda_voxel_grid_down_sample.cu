@@ -16,7 +16,6 @@
 
 namespace gca
 {
-/****************** Voxel grid Downsampling with Eigen Vector3f as coordinates ******************/
 /**************************** Useful functors for thrust algorithms  ****************************/
 
 struct compute_voxel_key_functor
@@ -45,7 +44,7 @@ struct compute_voxel_key_functor
 
 struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bool>
 {
-    __forceinline__ __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
+    __forceinline__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
     {
         if (lhs.x != rhs.x)
             return lhs.x < rhs.x;
@@ -62,7 +61,7 @@ struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bo
 
 struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
 {
-    __forceinline__ __host__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
+    __forceinline__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
     {
         return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
     }
@@ -73,7 +72,6 @@ struct add_points_functor
     __forceinline__ __device__ gca::point_t operator()(const gca::point_t &first,
                                                        const gca::point_t &second)
     {
-
         return gca::point_t{.coordinates{
                                 .x = first.coordinates.x + second.coordinates.x,
                                 .y = first.coordinates.y + second.coordinates.y,

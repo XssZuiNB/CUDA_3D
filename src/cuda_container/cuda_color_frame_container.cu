@@ -60,7 +60,7 @@ uint32_t cuda_color_frame::get_color_frame_height() const
     return __m_impl->get_frame_height();
 }
 
-const thrust::device_vector<uint8_t> &cuda_color_frame::data() const
+const thrust::device_vector<uint8_t> &cuda_color_frame::get_color_frame_vec() const
 {
     return __m_impl->get_frame_vec();
 }

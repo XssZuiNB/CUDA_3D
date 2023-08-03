@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 
     cuda_print_devices();
     cuda_warm_up_gpu(0);
-    auto rs_cam = gca::realsense_device(1);
+    auto rs_cam = gca::realsense_device(0);
     if (!rs_cam.device_start())
         return 1;
 
@@ -50,11 +50,12 @@ int main(int argc, char *argv[])
     typedef pcl::PointXYZRGBA PointT;
     typedef pcl::PointCloud<PointT> PointCloud;
     PointCloud::Ptr cloud(new PointCloud);
-
     pcl::visualization::CloudViewer viewer("viewer");
 
     gca::cuda_color_frame gpu_color(rs_cam.get_width(), rs_cam.get_height());
     gca::cuda_depth_frame gpu_depth(rs_cam.get_width(), rs_cam.get_height());
+
+    gca::point_cloud gcapc;
 
     while (!exit_requested)
     {
@@ -67,10 +68,10 @@ int main(int argc, char *argv[])
         gpu_color.upload((uint8_t *)color, 640, 480);
         gpu_depth.upload((uint16_t *)depth, 640, 480);
 
-        auto pc = gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.0, 10.0);
-        auto start_or = std::chrono::steady_clock::now();
-        auto pc_downsampling = pc->voxel_grid_down_sample(0.03f);
+        gcapc = *gca::point_cloud::create_from_rgbd(gpu_depth, gpu_color, cu_param, 0.0, 10.0);
 
+        auto pc_downsampling = gcapc.voxel_grid_down_sample(0.03f);
+        auto start_or = std::chrono::steady_clock::now();
         auto pc_remove_noise = pc_downsampling->radius_outlier_removal(0.06, 8);
         auto end = std::chrono::steady_clock::now();
         std::cout << "GPU Voxel number: " << pc_downsampling->points_number() << std::endl;

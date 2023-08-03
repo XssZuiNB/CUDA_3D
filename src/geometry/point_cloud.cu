@@ -125,9 +125,9 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
                     m_max_bound.z + voxel_size * 0.5);
 
     if (voxel_size * std::numeric_limits<int>::max() <
-        max(max(voxel_grid_max_bound.x - voxel_grid_min_bound.x,
-                voxel_grid_max_bound.y - voxel_grid_min_bound.y),
-            voxel_grid_max_bound.z - voxel_grid_min_bound.z))
+        std::max(std::max(voxel_grid_max_bound.x - voxel_grid_min_bound.x,
+                          voxel_grid_max_bound.y - voxel_grid_min_bound.y),
+                 voxel_grid_max_bound.z - voxel_grid_min_bound.z))
     {
         std::cout << YELLOW << "Voxel size is too small, a empty point cloud returned!"
                   << std::endl;
@@ -177,9 +177,9 @@ std::shared_ptr<point_cloud> point_cloud::radius_outlier_removal(
         make_float3(m_max_bound.x + radius, m_max_bound.y + radius, m_max_bound.z + radius);
 
     if (radius * 2 * std::numeric_limits<int>::max() <
-        max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
-                grid_cells_max_bound.y - grid_cells_min_bound.y),
-            grid_cells_max_bound.z - grid_cells_min_bound.z))
+        std::max(std::max(grid_cells_max_bound.x - grid_cells_min_bound.x,
+                          grid_cells_max_bound.y - grid_cells_min_bound.y),
+                 grid_cells_max_bound.z - grid_cells_min_bound.z))
     {
         std::cout << YELLOW << "Radius is too small, a empty point cloud returned!" << std::endl;
         return output;
@@ -216,8 +216,8 @@ std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth
         return pc;
     }
 
-    if (!cuda_make_point_cloud(pc->m_points, depth, color, param, threshold_min_in_meter,
-                               threshold_max_in_meter))
+    if (cuda_make_point_cloud(pc->m_points, depth, color, param, threshold_min_in_meter,
+                              threshold_max_in_meter) != ::cudaSuccess)
         std::cout << YELLOW << "CUDA can't make a point cloud, A empty point cloud returned! \n"
                   << std::endl;
 
