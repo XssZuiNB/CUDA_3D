@@ -5,6 +5,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <thrust/device_vector.h>
 #include <thrust/extrema.h>
 #include <thrust/remove.h>
 #include <thrust/tuple.h>

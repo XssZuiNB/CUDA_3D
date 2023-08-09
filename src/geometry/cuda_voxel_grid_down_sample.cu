@@ -109,11 +109,8 @@ struct compute_points_mean_functor
 
 ::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
                                          const thrust::device_vector<gca::point_t> &src_points,
-                                         const float3 &voxel_grid_min_bound, const float voxel_size,
-                                         ::cudaStream_t stream)
+                                         const float3 &voxel_grid_min_bound, const float voxel_size)
 {
-    auto exec_policy = thrust::cuda::par.on(stream);
-
     auto n_points = src_points.size();
     if (result_points.size() != n_points)
     {
@@ -121,7 +118,7 @@ struct compute_points_mean_functor
     }
 
     thrust::device_vector<int3> keys(n_points);
-    thrust::transform(exec_policy, src_points.begin(), src_points.end(), keys.begin(),
+    thrust::transform(src_points.begin(), src_points.end(), keys.begin(),
                       compute_voxel_key_functor(voxel_grid_min_bound, voxel_size));
     auto err = cudaGetLastError();
     if (err != ::cudaSuccess)
@@ -130,9 +127,8 @@ struct compute_points_mean_functor
     }
 
     thrust::device_vector<gca::index_t> index_vec(n_points);
-    thrust::sequence(exec_policy, index_vec.begin(), index_vec.end());
-    thrust::sort_by_key(exec_policy, keys.begin(), keys.end(), index_vec.begin(),
-                        compare_voxel_key_functor());
+    thrust::sequence(index_vec.begin(), index_vec.end());
+    thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
     auto get_point_with_sorted_index_iter =
         thrust::make_permutation_iterator(src_points.begin(), index_vec.begin());
     err = cudaGetLastError();
@@ -142,10 +138,9 @@ struct compute_points_mean_functor
     }
 
     auto end_iter_of_points =
-        thrust::reduce_by_key(exec_policy, keys.begin(), keys.end(),
-                              get_point_with_sorted_index_iter, thrust::make_discard_iterator(),
-                              result_points.begin(), voxel_key_equal_functor(),
-                              add_points_functor())
+        thrust::reduce_by_key(keys.begin(), keys.end(), get_point_with_sorted_index_iter,
+                              thrust::make_discard_iterator(), result_points.begin(),
+                              voxel_key_equal_functor(), add_points_functor())
             .second;
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
@@ -155,9 +150,9 @@ struct compute_points_mean_functor
 
     thrust::device_vector<gca::counter_t> points_counter_per_voxel(n_points, 1);
     auto end_iter_of_points_counter =
-        thrust::reduce_by_key(exec_policy, keys.begin(), keys.end(),
-                              points_counter_per_voxel.begin(), thrust::make_discard_iterator(),
-                              points_counter_per_voxel.begin(), voxel_key_equal_functor())
+        thrust::reduce_by_key(keys.begin(), keys.end(), points_counter_per_voxel.begin(),
+                              thrust::make_discard_iterator(), points_counter_per_voxel.begin(),
+                              voxel_key_equal_functor())
             .second;
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
@@ -174,15 +169,12 @@ struct compute_points_mean_functor
     result_points.resize(new_n_points);
     points_counter_per_voxel.resize(new_n_points);
 
-    thrust::transform(exec_policy, result_points.begin(), result_points.end(),
-                      points_counter_per_voxel.begin(), result_points.begin(),
-                      compute_points_mean_functor());
+    thrust::transform(result_points.begin(), result_points.end(), points_counter_per_voxel.begin(),
+                      result_points.begin(), compute_points_mean_functor());
     if (err != ::cudaSuccess)
     {
         return err;
     }
-
-    cudaStreamSynchronize(stream);
 
     return ::cudaSuccess;
 }

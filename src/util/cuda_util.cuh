@@ -51,7 +51,7 @@ __forceinline__ static void check_cuda_error(cudaError_t err, const char *file, 
 }
 
 #define MAX_STREAMS 8
-inline cudaStream_t get_stream(uint8_t i)
+inline cudaStream_t cuda_get_stream(int8_t i)
 {
     static std::once_flag streamInitFlags[MAX_STREAMS];
     static cudaStream_t streams[MAX_STREAMS];

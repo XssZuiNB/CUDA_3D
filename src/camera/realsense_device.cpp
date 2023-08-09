@@ -60,7 +60,7 @@ bool realsense_device::find_device()
         return false;
     }
 
-    m_device = list[m_device_id]; // TODO: Always get the first device, could be changed
+    m_device = list[m_device_id];
 
     m_config.enable_device(m_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
 

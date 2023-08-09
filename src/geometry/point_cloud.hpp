@@ -22,7 +22,7 @@ public:
     void download(std::vector<point_t> &dst) const;
     std::vector<point_t> download() const;
 
-    bool compute_min_max_bound(::cudaStream_t stream = cudaStreamDefault);
+    bool compute_min_max_bound();
     float3 get_min_bound();
     float3 get_max_bound();
 
@@ -36,8 +36,7 @@ public:
         return m_points.size();
     }
 
-    std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size,
-                                                        ::cudaStream_t stream = cudaStreamDefault);
+    std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size);
 
     std::shared_ptr<point_cloud> radius_outlier_removal(float radius,
                                                         gca::counter_t min_neighbors_in_radius);

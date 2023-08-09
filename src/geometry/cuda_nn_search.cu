@@ -361,7 +361,7 @@ struct check_if_enough_radius_nn_functor
     const thrust::device_vector<gca::point_t> &points_R, float3 min_bound, const float3 max_bound,
     const float search_radius)
 {
-    /* 1. Prepare resources for 2 point clouds */
+    /* 1. Prepare resources for point clouds */
     auto grid_cell_size = search_radius * 2;
     auto n_grid_cells_x =
         static_cast<gca::counter_t>((max_bound.x - min_bound.x) / grid_cell_size) + 1;
@@ -595,6 +595,7 @@ struct check_if_enough_radius_nn_functor
     }
 
     result_points.resize(end_iter_result_points - result_points.begin());
+
     return ::cudaSuccess;
 }
 } // namespace gca

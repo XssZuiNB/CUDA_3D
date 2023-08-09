@@ -207,8 +207,7 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
                                     const gca::cuda_depth_frame &cuda_depth_container,
                                     const gca::cuda_color_frame &cuda_color_container,
                                     const gca::cuda_camera_param &param,
-                                    float threshold_min_in_meter, float threshold_max_in_meter,
-                                    ::cudaStream_t stream)
+                                    float threshold_min_in_meter, float threshold_max_in_meter)
 {
     auto depth_intrin_ptr = param.get_depth_intrinsics_ptr();
     auto color_intrin_ptr = param.get_color_intrinsics_ptr();
@@ -233,7 +232,7 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     dim3 threads(32, 32);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
-    __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads, 0, stream>>>(
+    __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
         result.data().get(), width, height, depth_frame_cuda_ptr, color_frame_cuda_ptr,
         depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr, depth_scale,
         threshold_min_in_meter,

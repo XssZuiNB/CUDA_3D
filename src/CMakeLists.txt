@@ -73,6 +73,7 @@ target_link_libraries(
     ${CUDA_LIBRARIES}
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
+    # ${CUDA_npps_LIBRARY}
     # Eigen3::Eigen
 )
 

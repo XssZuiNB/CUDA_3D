@@ -17,6 +17,5 @@ namespace gca
                                     const gca::cuda_depth_frame &cuda_depth_container,
                                     const gca::cuda_color_frame &cuda_color_container,
                                     const gca::cuda_camera_param &param,
-                                    float threshold_min_in_meter, float threshold_max_in_meter,
-                                    ::cudaStream_t stream = cudaStreamDefault);
+                                    float threshold_min_in_meter, float threshold_max_in_meter);
 } // namespace gca
