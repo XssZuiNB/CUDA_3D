@@ -222,4 +222,89 @@ std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth
 
     return pc;
 }
+
+thrust::device_vector<gca::index_t> point_cloud::nn_search(gca::point_cloud &query_pc,
+                                                           gca::point_cloud &reference_pc,
+                                                           float radius)
+{
+    thrust::device_vector<gca::index_t> result_nn_idx_in_reference(query_pc.points_number());
+
+    if (radius <= 0.0)
+    {
+        std::cout << YELLOW << "Radius is less than 0, a empty result returned!" << std::endl;
+        return result_nn_idx_in_reference;
+    }
+
+    if (!query_pc.m_has_bound)
+    {
+        if (!(query_pc.compute_min_max_bound()))
+        {
+            std::cout
+                << YELLOW
+                << "Compute bound of query point cloud is not possible, a empty result returned!"
+                << std::endl;
+            return result_nn_idx_in_reference;
+        }
+    }
+
+    if (!reference_pc.m_has_bound)
+    {
+        if (!(reference_pc.compute_min_max_bound()))
+        {
+            std::cout << YELLOW
+                      << "Compute bound of reference point cloud is not possible, a empty result "
+                         "returned!"
+                      << std::endl;
+            return result_nn_idx_in_reference;
+        }
+    }
+
+    const auto grid_cells_min_bound =
+        make_float3(std::min(query_pc.m_min_bound.x, reference_pc.m_min_bound.x) - radius,
+                    std::min(query_pc.m_min_bound.y, reference_pc.m_min_bound.y) - radius,
+                    std::min(query_pc.m_min_bound.z, reference_pc.m_min_bound.z) - radius);
+
+    const auto grid_cells_max_bound =
+        make_float3(std::max(query_pc.m_max_bound.x, reference_pc.m_max_bound.x) + radius,
+                    std::max(query_pc.m_max_bound.y, reference_pc.m_max_bound.y) + radius,
+                    std::max(query_pc.m_max_bound.z, reference_pc.m_max_bound.z) + radius);
+
+    if (radius * 2 * std::numeric_limits<int>::max() <
+        std::max(std::max(grid_cells_max_bound.x - grid_cells_min_bound.x,
+                          grid_cells_max_bound.y - grid_cells_min_bound.y),
+                 grid_cells_max_bound.z - grid_cells_min_bound.z))
+    {
+        std::cout << YELLOW << "Radius is too small, a empty result returned!" << std::endl;
+        return result_nn_idx_in_reference;
+    }
+
+    auto err = cuda_nn_search(result_nn_idx_in_reference, query_pc.m_points, reference_pc.m_points,
+                              grid_cells_min_bound, grid_cells_max_bound, radius);
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW << "Radius outlier removal failed, a invalid result returned! \n"
+                  << std::endl;
+        return result_nn_idx_in_reference;
+    }
+
+    return result_nn_idx_in_reference;
+}
+
+void point_cloud::nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
+                            gca::point_cloud &reference_pc, float radius)
+{
+    auto start = std::chrono::steady_clock::now();
+    auto result_nn_idx_device_vec = point_cloud::nn_search(query_pc, reference_pc, radius);
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "Cuda nn time in microseconds: "
+              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
+              << std::endl;
+    std::cout << "Cuda nn time in milliseconds: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
+              << std::endl;
+
+    result_nn_idx.resize(result_nn_idx_device_vec.size());
+    thrust::copy(result_nn_idx_device_vec.begin(), result_nn_idx_device_vec.end(),
+                 result_nn_idx.begin());
+}
 } // namespace gca

@@ -19,6 +19,7 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/point_types.h>
 #include <pcl/visualization/cloud_viewer.h>
 
@@ -104,7 +105,12 @@ int main(int argc, char *argv[])
         std::cout << "GPU pc2 after radius outlier removal points number: "
                   << pc_remove_noise_1->points_number() << std::endl;
 
-        auto points_0 = pc_downsampling_0->download();
+        std::vector<gca::index_t> result_nn_idx_cuda;
+        gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_0, *pc_remove_noise_1,
+                                    0.8);
+
+        auto points_0 = pc_remove_noise_0->download();
+        auto points_1 = pc_remove_noise_1->download();
 
         auto number_of_points = points_0.size();
         cloud_0->points.resize(number_of_points);
@@ -120,41 +126,88 @@ int main(int argc, char *argv[])
             cloud_0->points[i] = p;
         }
 
-        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
-            new pcl::PointCloud<pcl::PointXYZRGBA>);
+        number_of_points = points_1.size();
+        cloud_1->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_1[i].coordinates.x;
+            p.y = -points_1[i].coordinates.y;
+            p.z = -points_1[i].coordinates.z;
+            p.r = points_1[i].color.r * 255;
+            p.g = points_1[i].color.g * 255;
+            p.b = points_1[i].color.b * 255;
+            cloud_1->points[i] = p;
+        }
 
-        pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
-        sor_radius.setInputCloud(cloud_0);
-        sor_radius.setRadiusSearch(0.06);
-        sor_radius.setMinNeighborsInRadius(8);
+        pcl::KdTreeFLANN<pcl::PointXYZRGBA> kdtree;
+        kdtree.setInputCloud(cloud_1);
 
-        start = std::chrono::steady_clock::now();
-        sor_radius.filter(*cloud_filtered);
-        end = std::chrono::steady_clock::now();
+        std::vector<int> nearest_indices_pcl;
+
+        for (size_t i = 0; i < cloud_0->points.size(); ++i)
+        {
+            std::vector<int> pointIdxNKNSearch(1);
+            std::vector<float> pointNKNSquaredDistance(1);
+
+            if (kdtree.nearestKSearch(cloud_0->points[i], 1, pointIdxNKNSearch,
+                                      pointNKNSquaredDistance) > 0)
+            {
+                nearest_indices_pcl.push_back(pointIdxNKNSearch[0]);
+            }
+            else
+            {
+                nearest_indices_pcl.push_back(-1);
+            }
+        }
+
+        if (result_nn_idx_cuda.size() != nearest_indices_pcl.size())
+        {
+            std::cout << "NN HAS PROBLEM!!!" << std::endl;
+        }
+
+        auto different = 0;
+
+        for (size_t i = 0; i < result_nn_idx_cuda.size(); i++)
+        {
+            if (result_nn_idx_cuda[i] != nearest_indices_pcl[i])
+            {
+                // std::cout << "Wrong NN!!! at " << i << std::endl;
+                // std::cout << "cuda " << result_nn_idx_cuda[i] << std::endl;
+                // std::cout << "pcl " << nearest_indices_pcl[i] << std::endl;
+                different += 1;
+            }
+        }
+
+        std::cout << "different num " << different << std::endl;
 
         /*
-                          pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA>
-                                           sor_statistical; sor_statistical.setInputCloud(cloud);
-                                   sor_statistical.setMeanK(10);
-           sor_statistical.setStddevMulThresh(1.0); sor_statistical.filter(*cloud_filtered);
+                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
+                    new pcl::PointCloud<pcl::PointXYZRGBA>);
 
+                pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
+                sor_radius.setInputCloud(cloud_1);
+                sor_radius.setRadiusSearch(0.06);
+                sor_radius.setMinNeighborsInRadius(8);
 
+                start = std::chrono::steady_clock::now();
+                sor_radius.filter(*cloud_filtered);
+                end = std::chrono::steady_clock::now();
 
+                viewer_0.showCloud(cloud_filtered);
+                std::cout << "PCL radius outlier removal time in microseconds: "
+                          << std::chrono::duration_cast<std::chrono::microseconds>(end -
+           start).count()
+                          << "us" << std::endl;
+                std::cout << "PCL radius outlier removal time in milliseconds: "
+                          << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+           start).count()
+                          << "ms" << std::endl;
 
-                                                                pcl::VoxelGrid<pcl::PointXYZRGBA>
-           sor; sor.setInputCloud(cloud); sor.setLeafSize(0.02f, 0.02f, 0.02f);
-                                                                sor.filter(*cloud_filtered);
-        */
-        viewer_0.showCloud(cloud_filtered);
-        std::cout << "PCL radius outlier removal time in microseconds: "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-                  << "us" << std::endl;
-        std::cout << "PCL radius outlier removal time in milliseconds: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                  << "ms" << std::endl;
-
-        std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
-        // std::cout << cloud_filtered->size() << std::endl;
+                std::cout << "Points number after PCL filter: " << cloud_filtered->size() <<
+           std::endl;
+                // std::cout << cloud_filtered->size() << std::endl;
+                */
         std::cout << "__________________________________________________" << std::endl;
     }
 

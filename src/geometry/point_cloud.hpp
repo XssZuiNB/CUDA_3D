@@ -26,12 +26,12 @@ public:
     float3 get_min_bound();
     float3 get_max_bound();
 
-    __host__ __device__ bool has_points() const
+    bool has_points() const
     {
         return !m_points.empty();
     }
 
-    __host__ __device__ size_t points_number() const
+    size_t points_number() const
     {
         return m_points.size();
     }
@@ -46,6 +46,13 @@ public:
                                                          const gca::cuda_camera_param &param,
                                                          float threshold_min_in_meter = 0.0,
                                                          float threshold_max_in_meter = 100.0);
+
+    static thrust::device_vector<gca::index_t> nn_search(gca::point_cloud &query_pc,
+                                                         gca::point_cloud &reference_pc,
+                                                         float radius);
+
+    static void nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
+                          gca::point_cloud &reference_pc, float radius);
 
     ~point_cloud() = default;
 

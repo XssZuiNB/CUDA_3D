@@ -127,8 +127,8 @@ struct nn_search_functor
     const float m_search_radius;
     const compute_grid_cell_functor m_compute_grid_cell;
 
-    __forceinline__ __device__ thrust::pair<gca::index_t, gca::index_t> operator()(
-        const gca::point_t &point, const gca::index_t idx_in_Q)
+    __forceinline__ __device__ gca::index_t operator()(const gca::point_t &point,
+                                                       const gca::index_t idx_in_Q)
     {
         /* 1. Devide a grid cell into 8 little cubes
          * 2. Check in which cube the point is
@@ -141,35 +141,14 @@ struct nn_search_functor
          */
         auto grid_cell = m_compute_grid_cell(point);
 
-        auto min_x_this_grid_cell = m_grid_cell_size * grid_cell.x + m_grid_cells_min_bound.x;
-        gca::index_t ix_begin =
-            (grid_cell.x == 0 || (point.coordinates.x - min_x_this_grid_cell) >= m_search_radius)
-                ? 0
-                : -1;
-        gca::index_t ix_end = (grid_cell.x == (m_n_grid_cells_x - 1) ||
-                               (point.coordinates.x - min_x_this_grid_cell) < m_search_radius)
-                                  ? 1
-                                  : 2;
+        gca::index_t ix_begin = (grid_cell.x == 0) ? 0 : -1;
+        gca::index_t ix_end = (grid_cell.x == (m_n_grid_cells_x - 1)) ? 1 : 2;
 
-        auto min_y_this_grid_cell = m_grid_cell_size * grid_cell.y + m_grid_cells_min_bound.y;
-        gca::index_t iy_begin =
-            (grid_cell.y == 0 || (point.coordinates.y - min_y_this_grid_cell) >= m_search_radius)
-                ? 0
-                : -1;
-        gca::index_t iy_end = (grid_cell.y == (m_n_grid_cells_y - 1) ||
-                               (point.coordinates.y - min_y_this_grid_cell) < m_search_radius)
-                                  ? 1
-                                  : 2;
+        gca::index_t iy_begin = (grid_cell.y == 0) ? 0 : -1;
+        gca::index_t iy_end = (grid_cell.y == (m_n_grid_cells_y - 1)) ? 1 : 2;
 
-        auto min_z_this_grid_cell = m_grid_cell_size * grid_cell.z + m_grid_cells_min_bound.z;
-        gca::index_t iz_begin =
-            (grid_cell.z == 0 || (point.coordinates.z - min_z_this_grid_cell) >= m_search_radius)
-                ? 0
-                : -1;
-        gca::index_t iz_end = (grid_cell.z == (m_n_grid_cells_z - 1) ||
-                               (point.coordinates.z - min_z_this_grid_cell) < m_search_radius)
-                                  ? 1
-                                  : 2;
+        gca::index_t iz_begin = (grid_cell.z == 0) ? 0 : -1;
+        gca::index_t iz_end = (grid_cell.z == (m_n_grid_cells_z - 1)) ? 1 : 2;
 
         auto idx_this_grid_cell = grid_cell.x * m_n_grid_cells_y * m_n_grid_cells_z +
                                   grid_cell.y * m_n_grid_cells_z + grid_cell.z;
@@ -217,7 +196,7 @@ struct nn_search_functor
             }
         }
 
-        return thrust::make_pair(idx_in_Q, nn_idx_in_R);
+        return nn_idx_in_R;
     }
 };
 
@@ -355,14 +334,13 @@ struct check_if_enough_radius_nn_functor
 };
 
 /* variables for query points are named as *_Q, and for reference points as *_R */
-::cudaError_t cuda_nn_search(
-    thrust::device_vector<thrust::pair<gca::index_t, gca::index_t>> &result_index_pair,
-    const thrust::device_vector<gca::point_t> &points_Q,
-    const thrust::device_vector<gca::point_t> &points_R, float3 min_bound, const float3 max_bound,
-    const float search_radius)
+::cudaError_t cuda_nn_search(thrust::device_vector<gca::index_t> &result_nn_idx_in_R,
+                             const thrust::device_vector<gca::point_t> &points_Q,
+                             const thrust::device_vector<gca::point_t> &points_R, float3 min_bound,
+                             const float3 max_bound, const float search_radius)
 {
     /* 1. Prepare resources for point clouds */
-    auto grid_cell_size = search_radius * 2;
+    auto grid_cell_size = search_radius;
     auto n_grid_cells_x =
         static_cast<gca::counter_t>((max_bound.x - min_bound.x) / grid_cell_size) + 1;
     auto n_grid_cells_y =
@@ -376,7 +354,7 @@ struct check_if_enough_radius_nn_functor
 
     auto n_points_Q = points_Q.size();
     auto n_points_R = points_R.size();
-    if (result_index_pair.size() != n_points_Q)
+    if (result_nn_idx_in_R.size() != n_points_Q)
     {
         return ::cudaErrorInvalidValue;
     }
@@ -466,7 +444,7 @@ struct check_if_enough_radius_nn_functor
      * requires sqrt, which might be slow, so here instead it square number should be used */
     auto end_iter_result_points = thrust::transform(
         points_Q.begin(), points_Q.end(), thrust::counting_iterator<gca::index_t>(0),
-        result_index_pair.begin(),
+        result_nn_idx_in_R.begin(),
         nn_search_functor(points_R, points_sorted_idxs_R, grid_cells_R, min_bound, n_grid_cells_x,
                           n_grid_cells_y, n_grid_cells_z, grid_cell_size, search_radius));
     err = cudaGetLastError();
