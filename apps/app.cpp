@@ -80,14 +80,14 @@ int main(int argc, char *argv[])
         gpu_depth_1.upload((uint16_t *)depth_1, 640, 480);
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.0, 10.0);
-        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.03f);
-        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.06, 8);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.2, 6.0);
+        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.045f);
+        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.1, 8);
 
         auto pc_1 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_1, gpu_color_1, cu_param_1, 0.0, 10.0);
-        auto pc_downsampling_1 = pc_1->voxel_grid_down_sample(0.03f);
-        auto pc_remove_noise_1 = pc_downsampling_1->radius_outlier_removal(0.06, 8);
+            gca::point_cloud::create_from_rgbd(gpu_depth_1, gpu_color_1, cu_param_1, 0.2, 6.0);
+        auto pc_downsampling_1 = pc_1->voxel_grid_down_sample(0.045f);
+        auto pc_remove_noise_1 = pc_downsampling_1->radius_outlier_removal(0.1, 8);
 
         auto end = std::chrono::steady_clock::now();
 
@@ -208,6 +208,7 @@ int main(int argc, char *argv[])
            std::endl;
                 // std::cout << cloud_filtered->size() << std::endl;
                 */
+        viewer_0.showCloud(cloud_1);
         std::cout << "__________________________________________________" << std::endl;
     }
 

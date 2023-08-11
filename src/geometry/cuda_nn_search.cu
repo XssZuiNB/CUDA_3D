@@ -30,7 +30,7 @@ struct compute_grid_cell_functor
     const float3 m_grid_cells_min_bound;
     const float m_grid_cell_size;
 
-    __forceinline__ __device__ int3 operator()(const gca::point_t &point) const
+    __forceinline__ __device__ int3 operator()(const gca::point_t point) const
     {
         int3 grid_cell;
         grid_cell.x =
@@ -127,7 +127,7 @@ struct nn_search_functor
     const float m_search_radius;
     const compute_grid_cell_functor m_compute_grid_cell;
 
-    __forceinline__ __device__ gca::index_t operator()(const gca::point_t &point,
+    __forceinline__ __device__ gca::index_t operator()(const gca::point_t point,
                                                        const gca::index_t idx_in_Q)
     {
         /* 1. Devide a grid cell into 8 little cubes
@@ -239,7 +239,7 @@ struct check_if_enough_radius_nn_functor
     const gca::counter_t m_min_neighbors_in_radius;
     const compute_grid_cell_functor m_compute_grid_cell;
 
-    __forceinline__ __device__ bool operator()(const gca::point_t &point)
+    __forceinline__ __device__ bool operator()(const gca::point_t point)
     {
         auto grid_cell = m_compute_grid_cell(point);
         /* 1. Devide a grid cell into 8 little cubes
