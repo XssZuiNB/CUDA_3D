@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
 
         std::vector<gca::index_t> result_nn_idx_cuda;
         gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_0, *pc_remove_noise_1,
-                                    0.8);
+                                    0.6);
 
         auto points_0 = pc_remove_noise_0->download();
         auto points_1 = pc_remove_noise_1->download();
