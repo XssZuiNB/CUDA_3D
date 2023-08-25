@@ -1,4 +1,3 @@
-#include "cuda_container/cuda_container.cuh"
 #include "cuda_container/cuda_container.hpp"
 #include "util/cuda_util.cuh"
 

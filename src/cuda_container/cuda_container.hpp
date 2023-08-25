@@ -2,12 +2,12 @@
 
 #include "camera/camera_device.hpp"
 #include "camera/camera_param.hpp"
+#include "cuda_container/cuda_frame.cuh"
 
-#include <memory>
+#include <thrust/device_vector.h>
 
 namespace gca
 {
-class cuda_color_frame_impl;
 class cuda_color_frame
 {
 public:
@@ -24,19 +24,17 @@ public:
 
     void upload(const uint8_t *src, uint32_t width, uint32_t height);
 
-    const uint8_t *data() const;
+    const thrust::device_vector<uint8_t> &get_color_frame_vec() const;
 
     void clear();
 
     ~cuda_color_frame();
 
 private:
+    using cuda_color_frame_impl = gca::cuda_frame<uint8_t, 3>;
     cuda_color_frame_impl *__m_impl;
-    uint32_t m_width;
-    uint32_t m_height;
 };
 
-class cuda_depth_frame_impl;
 class cuda_depth_frame
 {
 public:
@@ -53,16 +51,15 @@ public:
 
     void upload(const uint16_t *src, uint32_t width, uint32_t height);
 
-    const uint16_t *data() const;
+    const thrust::device_vector<uint16_t> &get_depth_frame_vec() const;
 
     void clear();
 
     ~cuda_depth_frame();
 
 private:
+    using cuda_depth_frame_impl = gca::cuda_frame<uint16_t, 1>;
     cuda_depth_frame_impl *__m_impl;
-    uint32_t m_width;
-    uint32_t m_height;
 };
 
 class cuda_camera_param

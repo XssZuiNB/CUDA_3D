@@ -1,10 +1,9 @@
+#include "gpu_check.hpp"
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-
 #include <iostream>
-
-#include "gpu_check.hpp"
 
 __global__ void __kernel_cudaWarmUpGPU()
 {

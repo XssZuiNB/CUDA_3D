@@ -70,8 +70,10 @@ target_include_directories(
     
 target_link_libraries(
     gca_lib
+    ${CUDA_LIBRARIES}
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
+    # ${CUDA_npps_LIBRARY}
     # Eigen3::Eigen
 )
 

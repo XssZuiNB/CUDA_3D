@@ -1,11 +1,12 @@
 #pragma once
 
-#include <iostream>
-#include <opencv4/opencv2/opencv.hpp>
-#include <string>
-
 #include "camera/camera_param.hpp"
 #include "util/console_color.hpp"
+
+#include <iostream>
+#include <string>
+
+#include <opencv4/opencv2/opencv.hpp>
 
 namespace gca
 {
@@ -24,31 +25,41 @@ public:
     {
     }
 
-    virtual ~device() = default;
-
     bool device_start()
     {
-        if (!find_device())
+        if (!m_device_started)
         {
-            std::cout << RED << "Didn't find a camera!" << std::endl;
-            return false;
-        }
-        std::cout << D_GREEN << "Found camera! Name: " << m_device_name << std::endl;
+            if (!find_device())
+            {
+                std::cout << RED << "Didn't find the camera!" << std::endl;
+                return false;
+            }
+            std::cout << D_GREEN << "Found camera! Name: " << m_device_name << std::endl;
 
-        if (!start_stream())
-        {
-            std::cout << RED << "Couldn't start stream!" << std::endl;
-            return false;
-        }
-        m_depth_scale = read_depth_scale();
-        m_color_intrinsics = read_color_intrinsics();
-        m_depth_intrinsics = read_depth_intrinsics();
-        m_color_to_depth_extrinsics = read_color_to_depth_extrinsics();
-        m_depth_to_color_extrinsics = read_depth_to_color_extrinsics();
+            if (!start_stream())
+            {
+                std::cout << RED << "Couldn't start stream!" << std::endl;
+                return false;
+            }
+            m_depth_scale = read_depth_scale();
+            m_color_intrinsics = read_color_intrinsics();
+            m_depth_intrinsics = read_depth_intrinsics();
+            m_color_to_depth_extrinsics = read_color_to_depth_extrinsics();
+            m_depth_to_color_extrinsics = read_depth_to_color_extrinsics();
 
-        m_device_started = true;
+            m_device_started = true;
+        }
 
         return true;
+    }
+
+    void device_stop()
+    {
+        if (m_device_started)
+        {
+            stop_stream();
+            m_device_started = false;
+        }
     }
 
     uint32_t get_width() const
@@ -120,13 +131,11 @@ public:
 
     void receive_data()
     {
-        if (m_device_started)
+        if (!m_device_started)
         {
-            receive_data_from_device();
-
-            m_color_raw_data = set_color_raw_data();
-            m_depth_raw_data = set_depth_raw_data();
+            m_device_started = device_start();
         }
+        receive_data_from_device();
     }
 
     cv::Mat get_color_cv_mat(bool if_deep_copy = true)
@@ -153,15 +162,17 @@ public:
         return tmp.clone();
     }
 
-    const void *get_color_raw_data()
+    const void *get_color_raw_data() const
     {
         return m_color_raw_data;
     }
 
-    const void *get_depth_raw_data()
+    const void *get_depth_raw_data() const
     {
         return m_depth_raw_data;
     }
+
+    virtual ~device() = default;
 
 protected:
     std::string m_device_name;
@@ -182,14 +193,13 @@ protected:
 private:
     virtual bool find_device() = 0;
     virtual bool start_stream() = 0;
+    virtual void stop_stream() = 0;
     virtual float read_depth_scale() = 0;
     virtual gca::intrinsics read_color_intrinsics() = 0;
     virtual gca::intrinsics read_depth_intrinsics() = 0;
     virtual gca::extrinsics read_color_to_depth_extrinsics() = 0;
     virtual gca::extrinsics read_depth_to_color_extrinsics() = 0;
     virtual void receive_data_from_device() = 0;
-    virtual const void *set_color_raw_data() = 0;
-    virtual const void *set_depth_raw_data() = 0;
     virtual cv::Mat set_color_to_cv_mat() = 0;
     virtual cv::Mat set_depth_to_cv_mat() = 0;
 
