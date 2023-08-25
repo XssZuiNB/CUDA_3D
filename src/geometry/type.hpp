@@ -9,7 +9,7 @@ namespace gca
 typedef int32_t index_t;
 typedef int32_t counter_t;
 
-enum point_property
+enum point_property : uint8_t
 {
     invalid = 0,
     active = 1,
@@ -23,12 +23,11 @@ struct color3
     float b;
 };
 
-struct __align__(16) point_t
+struct point_t
 {
     float3 coordinates;
     color3 color;
     point_property property;
-    friend std::ostream &operator<<(std::ostream &os, const point_t &point);
 };
 
 inline std::ostream &operator<<(std::ostream &os, const point_t &point)
@@ -39,19 +38,6 @@ inline std::ostream &operator<<(std::ostream &os, const point_t &point)
        << "R: " << point.color.r << " G: " << point.color.g << " B: " << point.color.b << "\n"
        << "Property: " << (point.property == gca::point_property::active ? "Active" : "Inactive")
        << "\n";
-    return os;
-}
-
-struct __align__(16) grid_cell_t
-{
-    index_t start_index;
-    counter_t points_number = 0;
-    friend std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell);
-};
-
-inline std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell)
-{
-    os << "Start Index: " << cell.start_index << ", Points Number: " << cell.points_number << "\n";
     return os;
 }
 } // namespace gca

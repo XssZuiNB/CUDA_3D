@@ -41,6 +41,10 @@ public:
     std::shared_ptr<point_cloud> radius_outlier_removal(float radius,
                                                         gca::counter_t min_neighbors_in_radius);
 
+    std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> euclidean_clustering(
+        const float cluster_tolerance, const gca::counter_t min_cluster_size,
+        const gca::counter_t max_cluster_size);
+
     static std::shared_ptr<point_cloud> create_from_rgbd(const gca::cuda_depth_frame &depth,
                                                          const gca::cuda_color_frame &color,
                                                          const gca::cuda_camera_param &param,
@@ -50,6 +54,8 @@ public:
     static thrust::device_vector<gca::index_t> nn_search(gca::point_cloud &query_pc,
                                                          gca::point_cloud &reference_pc,
                                                          float radius);
+
+    static std::vector<std::shared_ptr<point_cloud>> euclidean_clustering();
 
     static void nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
                           gca::point_cloud &reference_pc, float radius);

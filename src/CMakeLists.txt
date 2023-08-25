@@ -88,13 +88,13 @@ if(${CMAKE_VERSION} GREATER_EQUAL 3.18)
     set_target_properties(
         gca_lib
         PROPERTIES
-        CUDA_ARCHITECTURES "61"
+        CUDA_ARCHITECTURES=native
     )
 
 else()
     message("CMake version less than 3.18, set CUDA_ARCHITECTURES in old way")
     set_property(
         TARGET gca_lib 
-        PROPERTY CUDA_ARCHITECTURES 61
+        PROPERTY CUDA_ARCHITECTURES "61"
     )
 endif()
