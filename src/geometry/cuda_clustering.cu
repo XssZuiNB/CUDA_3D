@@ -276,22 +276,19 @@ struct check_if_queue_empty_functor
             sq_idx++;
         }
 
-#pragma omp parallel num_threads(1)
+        if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
         {
-            if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
+            for (const auto &neighbor : seed_queue)
             {
-                for (const auto &neighbor : seed_queue)
-                {
-                    cluster_of_point[neighbor] = cluster;
-                }
-                cluster++;
+                cluster_of_point[neighbor] = cluster;
             }
-            else
+            cluster++;
+        }
+        else
+        {
+            for (const auto &neighbor : seed_queue)
             {
-                for (const auto &neighbor : seed_queue)
-                {
-                    cluster_of_point[neighbor] = -1;
-                }
+                cluster_of_point[neighbor] = -1;
             }
         }
     }
