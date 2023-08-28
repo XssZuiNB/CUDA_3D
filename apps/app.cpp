@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 60);
+    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 60);
     if (!rs_cam_0.device_start())
         return 1;
     /*
@@ -81,14 +81,13 @@ if (!rs_cam_1.device_start())
         // gpu_color_1.upload((uint8_t *)color_1, 640, 480);
         // gpu_depth_1.upload((uint16_t *)depth_1, 640, 480);
 
-        auto start = std::chrono::steady_clock::now();
         auto pc_0 =
             gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.2f, 8.0f);
 
-        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.03f, 8);
+        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.03f, 5);
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.03f);
-
+        auto start = std::chrono::steady_clock::now();
         auto clusters = pc_downsampling_0->euclidean_clustering(0.06f, 100, 25000);
         auto end = std::chrono::steady_clock::now();
         /*
@@ -181,7 +180,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         std::cout << "PCL neighbor total number: " << n << std::endl;
         */
         /* PCL Clustering test */
-
+        start = std::chrono::steady_clock::now();
         pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(
             new pcl::search::KdTree<pcl::PointXYZRGBA>);
         tree->setInputCloud(cloud_0);
@@ -189,11 +188,11 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         std::vector<pcl::PointIndices> cluster_indices;
         pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
         ec.setClusterTolerance(0.06);
-        ec.setMinClusterSize(0);
-        ec.setMaxClusterSize(500000);
+        ec.setMinClusterSize(100);
+        ec.setMaxClusterSize(25000);
         ec.setSearchMethod(tree);
         ec.setInputCloud(cloud_0);
-        start = std::chrono::steady_clock::now();
+
         ec.extract(cluster_indices);
         end = std::chrono::steady_clock::now();
         int j = 0;
