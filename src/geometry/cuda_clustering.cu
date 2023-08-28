@@ -16,14 +16,8 @@
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 
-#include <chrono>
-#include <future>
-#include <mutex>
-#include <queue>
 #include <thread>
 #include <vector>
-
-#include <omp.h>
 
 namespace gca
 {
@@ -143,6 +137,7 @@ struct check_if_queue_empty_functor
     }
 
     thrust::device_vector<uint> visited(n_points, 0);
+    std::vector<uint> visited_host(n_points, 0);
     gca::index_t cluster = 0;
     const bool bool_true = true;
     while (true)
@@ -194,6 +189,8 @@ struct check_if_queue_empty_functor
             }
         }
 
+        thrust::copy(visited.begin(), visited.end(), visited_host.begin());
+
         cluster++;
     }
 
@@ -242,60 +239,62 @@ struct check_if_queue_empty_functor
                  pair_neighbors_begin_idx_and_count_host.begin());
 
     std::vector<bool> visited(n_points, false);
-    std::queue<gca::index_t> q;
     gca::index_t cluster = 0;
-    omp_set_num_threads(8);
 
-#pragma omp parallel for shared(visited)
     for (gca::index_t i = 0; i < n_points; i++)
     {
         if (visited[i])
-        {
-            continue;
-        }
+            if (visited[i])
+            {
+                continue;
+            }
+
+        std::vector<gca::index_t> seed_queue;
+        gca::index_t sq_idx = 0;
+        seed_queue.push_back(i);
 
         visited[i] = true;
-        q.push(i);
 
-        while (!q.empty())
+        while (sq_idx < static_cast<gca::index_t>(seed_queue.size()))
         {
-            auto run = [&](gca::index_t p) {
-                auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[p].first;
-                auto n_neighbors = pair_neighbors_begin_idx_and_count_host[p].second;
-#pragma omp parallel for shared(visited, q)
-                for (gca::index_t j = 0; j < n_neighbors; j++)
-                {
-                    auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
-                    if (!visited[neighbor])
-                    {
-#pragma omp critical
-                        {
-                            visited[neighbor] = true;
-                            q.push(neighbor);
-                            cluster_of_point[neighbor] = cluster;
-                        }
-                    }
-                }
-            };
 
-            auto this_p = q.front();
-            q.pop();
-            run(this_p);
-            if (!q.empty())
+            auto this_p = seed_queue[sq_idx];
+            auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[this_p].first;
+            auto n_neighbors = pair_neighbors_begin_idx_and_count_host[this_p].second;
+
+            for (gca::index_t j = 0; j < n_neighbors; j++)
             {
-                auto next_p = q.front();
-                q.pop();
-                run(next_p);
+                auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
+                if (visited[neighbor])
+                    continue;
+
+                visited[neighbor] = true;
+                seed_queue.push_back(neighbor);
             }
+
+            sq_idx++;
         }
 
-        cluster++;
+        if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
+        {
+            for (const auto &neighbor : seed_queue)
+            {
+                cluster_of_point[neighbor] = cluster;
+            }
+            cluster++;
+        }
+        else
+        {
+            for (const auto &neighbor : seed_queue)
+            {
+                cluster_of_point[neighbor] = -1;
+            }
+        }
     }
-
     total_clusters = cluster;
 
     return ::cudaSuccess;
-}
+} // namespace gca
 
 /*
 ::cudaError_t cuda_set_cluster_color(thrust::device_vector<gca::point_t> &result_points,

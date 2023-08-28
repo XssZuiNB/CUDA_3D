@@ -205,23 +205,23 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
     euclidean_clustering(const float cluster_tolerance, const gca::counter_t min_cluster_size,
                          const gca::counter_t max_cluster_size)
 {
-    auto cluster = std::make_shared<std::vector<gca::index_t>>(m_points.size());
+    auto cluster_of_point = std::make_shared<std::vector<gca::index_t>>(m_points.size());
 
     if (cluster_tolerance <= 0.0)
     {
-        std::cout << YELLOW << "Radius is less than 0, a empty point cloud returned!" << std::endl;
-        return std::make_pair(cluster, 0);
+        std::cout << YELLOW << "Clustering tolerance is less than 0, a empty result returned!"
+                  << std::endl;
+        return std::make_pair(cluster_of_point, 0);
     }
 
     if (!m_has_bound)
     {
         if (!compute_min_max_bound())
         {
-            std::cout
-                << YELLOW
-                << "Compute bound of point cloud is not possible, a empty point cloud returned!"
-                << std::endl;
-            return std::make_pair(cluster, 0);
+            std::cout << YELLOW
+                      << "Compute bound of point cloud is not possible, a empty result returned!"
+                      << std::endl;
+            return std::make_pair(cluster_of_point, 0);
         }
     }
 
@@ -238,9 +238,11 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
                 grid_cells_max_bound.y - grid_cells_min_bound.y),
             grid_cells_max_bound.z - grid_cells_min_bound.z))
     {
-        std::cout << YELLOW << "Radius is too small, a empty point cloud returned!" << std::endl;
-        return std::make_pair(cluster, 0);
+        std::cout << YELLOW << "Cluster tolerance is too small, a empty result returned!"
+                  << std::endl;
+        return std::make_pair(cluster_of_point, 0);
     }
+    /*
     /*
     thrust::device_vector<gca::index_t> cluster_dev(m_points.size());
     gca::counter_t n_clusters;
@@ -249,26 +251,28 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
                                          max_cluster_size);
     if (err != ::cudaSuccess)
     {
-        std::cout << YELLOW << "Radius outlier removal failed, a invalid point cloud returned!\n"
+        std::cout << YELLOW << "Radius outlier removal failed, a invalid point cloud returned!\n "
                   << std::endl;
-        return std::make_pair(cluster, 0);
+        return std::make_pair(cluster_of_point, 0);
     }
 
+    thrust::copy(cluster_dev.begin(), cluster_dev.end(), cluster_of_point->begin());
+
+    gca::counter_t n_clusters;
     thrust::copy(cluster_dev.begin(), cluster_dev.end(), cluster->begin());
     */
     gca::counter_t n_clusters;
 
-    auto err = cuda_euclidean_clustering(*cluster, n_clusters, m_points, grid_cells_min_bound,
-                                         grid_cells_max_bound, cluster_tolerance, min_cluster_size,
-                                         max_cluster_size);
+    auto err = cuda_euclidean_clustering(*cluster_of_point, n_clusters, m_points,
+                                         grid_cells_min_bound, grid_cells_max_bound,
+                                         cluster_tolerance, min_cluster_size, max_cluster_size);
     if (err != ::cudaSuccess)
     {
-        std::cout << YELLOW << "Radius outlier removal failed, a invalid point cloud returned ! \n "
-                  << std::endl;
-        return std::make_pair(cluster, 0);
+        std::cout << YELLOW << "Clustering failed, a invalid result returned ! \n " << std::endl;
+        return std::make_pair(cluster_of_point, 0);
     }
 
-    return std::make_pair(cluster, n_clusters);
+    return std::make_pair(cluster_of_point, n_clusters);
 }
 
 std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth_frame &depth,
