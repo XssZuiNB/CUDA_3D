@@ -23,6 +23,8 @@
 #include <thread>
 #include <vector>
 
+#include <omp.h>
+
 namespace gca
 {
 struct fill_point_in_this_cluster_vec_functor
@@ -242,10 +244,12 @@ struct check_if_queue_empty_functor
     std::vector<bool> visited(n_points, false);
     std::queue<gca::index_t> q;
     gca::index_t cluster = 0;
+    omp_set_num_threads(8);
 
+#pragma omp parallel for shared(visited)
     for (gca::index_t i = 0; i < n_points; i++)
     {
-        if (visited[i] == true)
+        if (visited[i])
         {
             continue;
         }
@@ -258,16 +262,19 @@ struct check_if_queue_empty_functor
             auto run = [&](gca::index_t p) {
                 auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[p].first;
                 auto n_neighbors = pair_neighbors_begin_idx_and_count_host[p].second;
-
+#pragma omp parallel for shared(visited, q)
                 for (gca::index_t j = 0; j < n_neighbors; j++)
                 {
                     auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
-                    if (visited[neighbor])
-                        continue;
-
-                    visited[neighbor] = true;
-                    q.push(neighbor);
-                    cluster_of_point[neighbor] = cluster;
+                    if (!visited[neighbor])
+                    {
+#pragma omp critical
+                        {
+                            visited[neighbor] = true;
+                            q.push(neighbor);
+                            cluster_of_point[neighbor] = cluster;
+                        }
+                    }
                 }
             };
 

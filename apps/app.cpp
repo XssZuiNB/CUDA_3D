@@ -81,14 +81,13 @@ if (!rs_cam_1.device_start())
         // gpu_color_1.upload((uint8_t *)color_1, 640, 480);
         // gpu_depth_1.upload((uint16_t *)depth_1, 640, 480);
 
-        auto start = std::chrono::steady_clock::now();
         auto pc_0 =
             gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.2f, 8.0f);
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.03f, 8);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.03f);
-
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.04f);
+        auto start = std::chrono::steady_clock::now();
         auto clusters = pc_downsampling_0->euclidean_clustering(0.06f, 100, 25000);
         auto end = std::chrono::steady_clock::now();
         /*

@@ -2,6 +2,7 @@ enable_language(CUDA)
 
 find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(OpenMP REQUIRED)
 # find_package(Eigen3 REQUIRED)
 
 find_library(REALSENSE2_FOUND realsense2 HINTS ${LIBRARY_DIR} REQUIRED)
@@ -73,6 +74,7 @@ target_link_libraries(
     ${CUDA_LIBRARIES}
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
+    OpenMP::OpenMP_CXX
     # ${CUDA_npps_LIBRARY}
     # Eigen3::Eigen
 )
