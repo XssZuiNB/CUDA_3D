@@ -16,8 +16,6 @@
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 
-#include <chrono>
-#include <thread>
 #include <vector>
 
 namespace gca
@@ -234,7 +232,6 @@ struct check_if_queue_empty_functor
     std::vector<thrust::pair<gca::index_t, gca::counter_t>> pair_neighbors_begin_idx_and_count_host(
         n_points);
 
-    auto start = std::chrono::steady_clock::now();
     thrust::copy(all_neighbors.begin(), all_neighbors.end(), all_neighbors_host.begin());
     thrust::copy(pair_neighbors_begin_idx_and_count.begin(),
                  pair_neighbors_begin_idx_and_count.end(),
@@ -292,10 +289,6 @@ struct check_if_queue_empty_functor
             }
         }
     }
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "BFS: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
     total_clusters = cluster;
 
     return ::cudaSuccess;
