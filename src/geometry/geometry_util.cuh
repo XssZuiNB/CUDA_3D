@@ -52,39 +52,27 @@ struct min_max_bound_functor
     }
 };
 
-__forceinline__ float3 cuda_compute_min_bound(const thrust::device_vector<gca::point_t> &points,
-                                              ::cudaStream_t stream = cudaStreamDefault)
+__forceinline__ float3 cuda_compute_min_bound(const thrust::device_vector<gca::point_t> &points)
 {
-    auto exec_policy = thrust::cuda::par.on(stream);
-
     gca::point_t init{.coordinates{.x = FLT_MAX, .y = FLT_MAX, .z = FLT_MAX}};
     auto min_bound =
-        thrust::reduce(exec_policy, points.begin(), points.end(), init, min_bound_functor())
-            .coordinates;
-    cudaStreamSynchronize(stream);
+        thrust::reduce(points.begin(), points.end(), init, min_bound_functor()).coordinates;
 
     return min_bound;
 }
 
-__forceinline__ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points,
-                                              ::cudaStream_t stream = cudaStreamDefault)
+__forceinline__ float3 cuda_compute_max_bound(const thrust::device_vector<gca::point_t> &points)
 {
-    auto exec_policy = thrust::cuda::par.on(stream);
-
     gca::point_t init{.coordinates{.x = FLT_MIN, .y = FLT_MIN, .z = FLT_MIN}};
     auto max_bound =
-        thrust::reduce(exec_policy, points.begin(), points.end(), init, max_bound_functor())
-            .coordinates;
-    cudaStreamSynchronize(stream);
+        thrust::reduce(points.begin(), points.end(), init, max_bound_functor()).coordinates;
 
     return max_bound;
 }
 
 __forceinline__ thrust::pair<float3, float3> cuda_compute_min_max_bound(
-    const thrust::device_vector<gca::point_t> &points, ::cudaStream_t stream = cudaStreamDefault)
+    const thrust::device_vector<gca::point_t> &points)
 {
-    auto exec_policy = thrust::cuda::par.on(stream);
-
     gca::point_t init_min{.coordinates{.x = FLT_MAX, .y = FLT_MAX, .z = FLT_MAX}};
     gca::point_t init_max{.coordinates{.x = FLT_MIN, .y = FLT_MIN, .z = FLT_MIN}};
     auto zipped_init = thrust::make_tuple(init_min, init_max);
@@ -94,9 +82,8 @@ __forceinline__ thrust::pair<float3, float3> cuda_compute_min_max_bound(
     auto zipped_iter_end =
         thrust::make_zip_iterator(thrust::make_tuple(points.end(), points.end()));
 
-    auto result = thrust::reduce(exec_policy, zipped_iter_begin, zipped_iter_end, zipped_init,
-                                 min_max_bound_functor());
-    cudaStreamSynchronize(stream);
+    auto result =
+        thrust::reduce(zipped_iter_begin, zipped_iter_end, zipped_init, min_max_bound_functor());
 
     return thrust::make_pair(thrust::get<0>(result).coordinates,
                              thrust::get<1>(result).coordinates);
@@ -111,13 +98,10 @@ struct check_is_invalid_point_functor
     }
 };
 
-__forceinline__ void remove_invalid_points(thrust::device_vector<gca::point_t> &points,
-                                           ::cudaStream_t stream = cudaStreamDefault)
+__forceinline__ void remove_invalid_points(thrust::device_vector<gca::point_t> &points)
 {
-    auto exec_policy = thrust::cuda::par.on(stream);
-    auto new_size = thrust::remove_if(exec_policy, points.begin(), points.end(),
-                                      check_is_invalid_point_functor());
-    cudaStreamSynchronize(stream);
+    auto new_size =
+        thrust::remove_if(points.begin(), points.end(), check_is_invalid_point_functor());
 
     points.resize(new_size - points.begin());
 }

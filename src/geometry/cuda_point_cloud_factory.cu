@@ -27,10 +27,8 @@ __device__ static float __bilateral_filter(const uint16_t *input, uint32_t input
     float sum_weight = 0.0f;
     float sum = 0.0f;
 
-#pragma unroll
     for (int dy = -filter_radius; dy <= filter_radius; ++dy)
     {
-#pragma unroll
         for (int dx = -filter_radius; dx <= filter_radius; ++dx)
         {
             int nx = index_x + dx;
@@ -104,11 +102,11 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
 
     __syncthreads();
 
-    int depth_x = blockIdx.x * blockDim.x + threadIdx.x;
-    int depth_y = blockIdx.y * blockDim.y + threadIdx.y;
-    int depth_pixel_index = depth_y * width + depth_x;
+    auto depth_x = blockIdx.x * blockDim.x + threadIdx.x;
+    auto depth_y = blockIdx.y * blockDim.y + threadIdx.y;
+    auto depth_pixel_index = depth_y * width + depth_x;
 
-    if (depth_x >= 0 && depth_x < width && depth_y >= 0 && depth_y < height)
+    if (depth_x < width && depth_y < height)
     {
         float depth_value;
         if (if_bilateral_filter)
@@ -116,7 +114,7 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
                 __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 7, 1, 50) *
                 depth_scale;
         else
-            depth_value = depth_frame_data[depth_pixel_index] * depth_scale;
+            depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
 
         if (depth_value <= 0.0 || depth_value < threshold_min || depth_value > threshold_max)
         {
@@ -149,9 +147,9 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
         p.coordinates.z = depth_xyz[2];
 
         const int color_index = 3 * (target_y * width + target_x);
-        p.color.b = float(color_frame_data[color_index + 0]) / 255;
-        p.color.g = float(color_frame_data[color_index + 1]) / 255;
-        p.color.r = float(color_frame_data[color_index + 2]) / 255;
+        p.color.b = float(__ldg(&color_frame_data[color_index + 0])) / 255;
+        p.color.g = float(__ldg(&color_frame_data[color_index + 1])) / 255;
+        p.color.r = float(__ldg(&color_frame_data[color_index + 2])) / 255;
 
         p.property = gca::point_property::inactive;
 
@@ -233,9 +231,9 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
-        result.data().get(), width, height, depth_frame_cuda_ptr, color_frame_cuda_ptr,
-        depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr, depth_scale,
-        threshold_min_in_meter,
+        thrust::raw_pointer_cast(result.data()), width, height, depth_frame_cuda_ptr,
+        color_frame_cuda_ptr, depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
+        depth_scale, threshold_min_in_meter,
         threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
                                  // is needed
 

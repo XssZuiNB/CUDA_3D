@@ -11,9 +11,9 @@ __global__ void __kernel_cudaWarmUpGPU()
     ind = ind + 1;
 }
 
-bool cuda_warm_up_gpu(uint8_t device_num)
+bool cuda_warm_up_gpu(uint8_t device_id)
 {
-    auto err = cudaSetDevice(device_num);
+    auto err = cudaSetDevice(device_id);
     if (err != cudaSuccess)
         return false;
 

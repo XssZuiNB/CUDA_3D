@@ -11,6 +11,7 @@
 #include <thrust/extrema.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/permutation_iterator.h>
+#include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 
@@ -20,7 +21,7 @@ namespace gca
 
 struct compute_voxel_key_functor
 {
-    compute_voxel_key_functor(const float3 &voxel_grid_min_bound, const float voxel_size)
+    compute_voxel_key_functor(const float3 voxel_grid_min_bound, const float voxel_size)
         : m_voxel_grid_min_bound(voxel_grid_min_bound)
         , m_voxel_size(voxel_size)
     {
@@ -44,7 +45,7 @@ struct compute_voxel_key_functor
 
 struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bool>
 {
-    __forceinline__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
+    __forceinline__ __device__ bool operator()(const int3 lhs, const int3 rhs) const
     {
         if (lhs.x != rhs.x)
             return lhs.x < rhs.x;
@@ -61,7 +62,7 @@ struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bo
 
 struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
 {
-    __forceinline__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
+    __forceinline__ __device__ bool operator()(const int3 lhs, const int3 rhs) const
     {
         return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
     }
@@ -114,7 +115,7 @@ struct compute_points_mean_functor
     auto n_points = src_points.size();
     if (result_points.size() != n_points)
     {
-        return ::cudaErrorInvalidValue;
+        result_points.resize(n_points);
     }
 
     thrust::device_vector<int3> keys(n_points);
@@ -128,14 +129,21 @@ struct compute_points_mean_functor
 
     thrust::device_vector<gca::index_t> index_vec(n_points);
     thrust::sequence(index_vec.begin(), index_vec.end());
-    thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
-    auto get_point_with_sorted_index_iter =
-        thrust::make_permutation_iterator(src_points.begin(), index_vec.begin());
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
         return err;
     }
+
+    thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
+    err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+    {
+        return err;
+    }
+
+    auto get_point_with_sorted_index_iter =
+        thrust::make_permutation_iterator(src_points.begin(), index_vec.begin());
 
     auto end_iter_of_points =
         thrust::reduce_by_key(keys.begin(), keys.end(), get_point_with_sorted_index_iter,
@@ -154,7 +162,6 @@ struct compute_points_mean_functor
                               thrust::make_discard_iterator(), points_counter_per_voxel.begin(),
                               voxel_key_equal_functor())
             .second;
-    err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
         return err;
@@ -167,10 +174,10 @@ struct compute_points_mean_functor
     }
 
     result_points.resize(new_n_points);
-    points_counter_per_voxel.resize(new_n_points);
 
     thrust::transform(result_points.begin(), result_points.end(), points_counter_per_voxel.begin(),
                       result_points.begin(), compute_points_mean_functor());
+    err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
         return err;
