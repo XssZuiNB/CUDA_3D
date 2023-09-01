@@ -237,7 +237,7 @@ struct check_if_queue_empty_functor
                  pair_neighbors_begin_idx_and_count.end(),
                  pair_neighbors_begin_idx_and_count_host.begin());
 
-    std::vector<bool> visited(n_points, false);
+    std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
     gca::index_t cluster = 0;
 
     for (gca::index_t i = 0; i < n_points; i++)
@@ -251,7 +251,7 @@ struct check_if_queue_empty_functor
         gca::index_t sq_idx = 0;
         seed_queue.push_back(i);
 
-        visited[i] = true;
+        visited[i] = 1;
 
         while (sq_idx < static_cast<gca::index_t>(seed_queue.size()))
         {
@@ -266,7 +266,7 @@ struct check_if_queue_empty_functor
                 if (visited[neighbor])
                     continue;
 
-                visited[neighbor] = true;
+                visited[neighbor] = 1;
                 seed_queue.push_back(neighbor);
             }
 
