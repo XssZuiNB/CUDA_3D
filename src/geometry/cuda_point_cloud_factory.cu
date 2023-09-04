@@ -110,9 +110,9 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     {
         float depth_value;
         if (if_bilateral_filter)
-            depth_value =
-                __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 7, 1, 50) *
-                depth_scale;
+            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 20,
+                                             1000, 250) *
+                          depth_scale;
         else
             depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
 
@@ -233,9 +233,9 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
         thrust::raw_pointer_cast(result.data()), width, height, depth_frame_cuda_ptr,
         color_frame_cuda_ptr, depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter,
-        threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
-                                 // is needed
+        depth_scale, threshold_min_in_meter, threshold_max_in_meter,
+        true); // didnt use bilateral filter, later maybe a compare to see if it
+               // is needed
 
     auto err = cudaDeviceSynchronize();
     if (err != ::cudaSuccess)

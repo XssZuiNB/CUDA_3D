@@ -36,6 +36,8 @@ file(
     GLOB MOVEMENT_DETECTION_SRC
     "movement_detection/*.cpp"
     "movement_detection/*.hpp"
+    "movement_detection/*.cu"
+    "movement_detection/*.cuh"
 )
 
 file(

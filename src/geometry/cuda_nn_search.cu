@@ -35,6 +35,9 @@ inline std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell)
 
 /*functors*/
 
+// TODO: this functor could directly store the result by passing it a device vector, with that the
+// grid cells of points dont need to be calculate again, this could save some time. But the
+// performance improvement could be not so impressive if you have a good GPU.
 struct compute_grid_cell_functor
 {
     compute_grid_cell_functor(const float3 &grid_cells_min_bound, const float grid_cell_size)

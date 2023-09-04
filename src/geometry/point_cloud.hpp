@@ -45,6 +45,10 @@ public:
         const float cluster_tolerance, const gca::counter_t min_cluster_size,
         const gca::counter_t max_cluster_size);
 
+    std::shared_ptr<point_cloud> movement_detection(point_cloud &last_frame,
+                                                    const float geometry_constraint,
+                                                    const float color_constraint);
+
     static std::shared_ptr<point_cloud> create_from_rgbd(const gca::cuda_depth_frame &depth,
                                                          const gca::cuda_color_frame &color,
                                                          const gca::cuda_camera_param &param,
@@ -54,8 +58,6 @@ public:
     static thrust::device_vector<gca::index_t> nn_search(gca::point_cloud &query_pc,
                                                          gca::point_cloud &reference_pc,
                                                          float radius);
-
-    static std::vector<std::shared_ptr<point_cloud>> euclidean_clustering();
 
     static void nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
                           gca::point_cloud &reference_pc, float radius);
