@@ -121,7 +121,7 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     {
         float depth_value;
         if (if_bilateral_filter)
-            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 15,
+            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 30,
                                              1000, 250) *
                           depth_scale;
         else
