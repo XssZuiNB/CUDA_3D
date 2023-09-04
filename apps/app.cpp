@@ -306,7 +306,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
 
         std::vector<pcl::PointIndices> cluster_indices;
         pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
-        ec.setClusterTolerance(0.06);
+        ec.setClusterTolerance(0.08);
         ec.setMinClusterSize(100);
         ec.setMaxClusterSize(25000);
         ec.setSearchMethod(tree);

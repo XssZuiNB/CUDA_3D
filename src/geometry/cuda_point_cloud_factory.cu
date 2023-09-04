@@ -20,30 +20,41 @@ __forceinline__ __device__ static float __gaussian(float x, float sigma)
     return exp(-(x * x) / (2 * sigma * sigma));
 }
 
-__device__ static float __bilateral_filter(const uint16_t *input, uint32_t input_width,
-                                           uint32_t input_height, int index_x, int index_y,
-                                           int filter_radius, float sigma_space, float sigma_depth)
+__forceinline__ __device__ static float __gaussian_square(float x_square, float sigma)
+{
+    return exp(-x_square / (2 * sigma * sigma));
+}
+
+__forceinline__ __device__ static float __bilateral_filter(const uint16_t *input,
+                                                           uint32_t input_width,
+                                                           uint32_t input_height, int index_x,
+                                                           int index_y, int filter_radius,
+                                                           float sigma_space, float sigma_depth)
 {
     float sum_weight = 0.0f;
     float sum = 0.0f;
 
+    auto depth_value = __ldg(&input[index_y * input_width + index_x]);
+
     for (int dy = -filter_radius; dy <= filter_radius; ++dy)
     {
+        // #pragma unroll
         for (int dx = -filter_radius; dx <= filter_radius; ++dx)
         {
             int nx = index_x + dx;
             int ny = index_y + dy;
 
-            if (nx >= 0 && nx < input_width && ny >= 0 && ny < input_height)
+            if (nx < 0 || nx >= input_width || ny < 0 || ny >= input_height)
             {
-                float weight = __gaussian(sqrtf(dx * dx + dy * dy), sigma_space) *
-                               __gaussian(abs(input[index_y * input_width + index_x] -
-                                              input[ny * input_width + nx]),
-                                          sigma_depth);
-
-                sum_weight += weight;
-                sum += weight * input[ny * input_width + nx];
+                continue;
             }
+
+            auto neighbor = __ldg(&input[ny * input_width + nx]);
+            float weight = __gaussian_square((dx * dx + dy * dy), sigma_space) *
+                           __gaussian(abs(depth_value - neighbor), sigma_depth);
+
+            sum_weight += weight;
+            sum += weight * neighbor;
         }
     }
 
@@ -110,7 +121,7 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     {
         float depth_value;
         if (if_bilateral_filter)
-            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 20,
+            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 15,
                                              1000, 250) *
                           depth_scale;
         else
