@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
+    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
     /*
@@ -128,46 +128,7 @@ if (!rs_cam_1.device_start())
         }
     }
     */
-    // 初始化背景减除器
-    /* GMM
-    cv::Ptr<cv::BackgroundSubtractor> pMOG2 = cv::createBackgroundSubtractorMOG2(80, 18.0);
 
-    cv::Mat frame, fgMask, result;
-
-    // 定义形态学操作的核
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::Mat kernel_close = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(10, 10));
-
-    while (true)
-    {
-        auto start = std::chrono::steady_clock::now();
-        // 读取摄像头帧
-        frame = rs_cam_0.get_color_cv_mat();
-
-        // 应用高斯背景去除算法
-        pMOG2->apply(frame, fgMask);
-
-        // 形态学开运算去除噪声
-        cv::morphologyEx(fgMask, result, cv::MORPH_OPEN, kernel);
-        cv::morphologyEx(result, result, cv::MORPH_CLOSE, kernel_close);
-        auto end = std::chrono::steady_clock::now();
-
-        std::cout << "opencv: "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-                  << "us" << std::endl;
-
-        // 显示原始图像和结果
-        // cv::imshow("Original", frame);
-        // cv::imshow("FG Mask", fgMask);
-        cv::imshow("Result", result);
-
-        // 按 'q' 退出循环
-        if (cv::waitKey(30) == 'q')
-        {
-            break;
-        }
-    }
-    */
     while (!exit_requested)
     {
         rs_cam_0.receive_data();
@@ -186,9 +147,9 @@ if (!rs_cam_1.device_start())
         auto pc_0 =
             gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 4);
 
-        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
+        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.025f, 6);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.035f);
         auto end = std::chrono::steady_clock::now();
         std::shared_ptr<gca::point_cloud> pc_moving;
 
@@ -200,7 +161,7 @@ if (!rs_cam_1.device_start())
         }
         else
         {
-            pc_moving = pc_downsampling_0->movement_detection(*last_frame_ptr, 0.1f, 0.03f);
+            pc_moving = pc_downsampling_0->movement_detection(*last_frame_ptr, 0.05f, 0.03f);
             last_frame_ptr = pc_downsampling_0;
         }
 
@@ -235,7 +196,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         // gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_1, *pc_remove_noise_0,
         // 1);
 
-        auto points_0 = pc_moving->download();
+        auto points_0 = pc_downsampling_0->download();
         // auto points_1 = pc_downsampling_1->download();
 
         auto number_of_points = points_0.size();

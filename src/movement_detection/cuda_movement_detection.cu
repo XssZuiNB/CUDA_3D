@@ -62,17 +62,15 @@ struct check_if_moving_point_functor
             auto neighbor_point_color_b = __ldg(&(m_pts_last_frame_ptr[neighbor_idx].color.b));
 
             auto coordinates_diff_x =
-                abs((neighbor_point_x - point.coordinates.x) / point.coordinates.x);
+                abs((point.coordinates.x - neighbor_point_x) / point.coordinates.x);
             auto coordinates_diff_y =
-                abs((neighbor_point_y - point.coordinates.y) / point.coordinates.y);
+                abs((point.coordinates.y - neighbor_point_y) / point.coordinates.y);
             auto coordinates_diff_z =
-                abs((neighbor_point_z - point.coordinates.z) / point.coordinates.z);
+                abs((point.coordinates.z - neighbor_point_z) / point.coordinates.z);
             auto color_diff = abs(color_intensity(point.color) -
                                   color_intensity(neighbor_point_color_r, neighbor_point_color_g,
                                                   neighbor_point_color_b));
-            if (coordinates_diff_x < 0.015 * abs(point.coordinates.z) &&
-                coordinates_diff_y < 0.015 * abs(point.coordinates.z) &&
-                coordinates_diff_z < 0.015 * abs(point.coordinates.z) &&
+            if (coordinates_diff_z < 0.01 * abs(point.coordinates.z) &&
                 color_diff < m_color_constraint)
             {
                 return point;
