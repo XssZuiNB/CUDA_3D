@@ -62,6 +62,20 @@ bool realsense_device::find_device()
 
     m_device = list[m_device_id];
 
+    // Set Laser power to max
+    for (auto &sensor : m_device.query_sensors())
+    {
+        if (auto dpt = sensor.as<rs2::depth_sensor>())
+        {
+            if (dpt.supports(RS2_OPTION_LASER_POWER))
+            {
+                // Query min and max values:
+                auto range = dpt.get_option_range(RS2_OPTION_LASER_POWER);
+                dpt.set_option(RS2_OPTION_LASER_POWER, range.max);
+            }
+        }
+    }
+
     m_config.enable_device(m_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
 
     m_device_name = m_device.get_info(RS2_CAMERA_INFO_NAME);
