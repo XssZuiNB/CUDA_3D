@@ -139,8 +139,8 @@ if (!rs_cam_1.device_start())
         auto color_1 = rs_cam_1.get_color_raw_data();
         auto depth_1 = rs_cam_1.get_depth_raw_data();*/
         auto start = std::chrono::steady_clock::now();
-        gpu_color_0.upload((uint8_t *)color_0, 640, 480);
-        gpu_depth_0.upload((uint16_t *)depth_0, 640, 480);
+        gpu_color_0.upload((uint8_t *)color_0, rs_cam_0.get_width(), rs_cam_0.get_height());
+        gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
         // gpu_color_1.upload((uint8_t *)color_1, 640, 480);
         // gpu_depth_1.upload((uint16_t *)depth_1, 640, 480);
 
@@ -149,7 +149,7 @@ if (!rs_cam_1.device_start())
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.025f, 6);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.035f);
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.03f);
         auto end = std::chrono::steady_clock::now();
         std::shared_ptr<gca::point_cloud> pc_moving;
 
@@ -180,6 +180,7 @@ if (!rs_cam_1.device_start())
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
+        std::cout << "GPU pc1 number: " << pc_0->points_number() << std::endl;
         std::cout << "GPU pc1 after remove noise number: " << pc_remove_noise_0->points_number()
                   << std::endl;
         std::cout << "GPU pc1 Voxel number: " << pc_downsampling_0->points_number() << std::endl;
@@ -196,7 +197,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         // gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_1, *pc_remove_noise_0,
         // 1);
 
-        auto points_0 = pc_downsampling_0->download();
+        auto points_0 = pc_0->download();
         // auto points_1 = pc_downsampling_1->download();
 
         auto number_of_points = points_0.size();
@@ -206,8 +207,8 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         {
             PointT p;
             p.x = points_0[i].coordinates.x;
-            p.y = -points_0[i].coordinates.y;
-            p.z = -points_0[i].coordinates.z;
+            p.y = points_0[i].coordinates.y;
+            p.z = points_0[i].coordinates.z;
             p.r = points_0[i].color.r * 255;
             p.g = points_0[i].color.g * 255;
             p.b = points_0[i].color.b * 255;
@@ -330,14 +331,14 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         */
 
         /* PCL Radius Outlier removal test */
-        /*
+
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
 
         pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
         sor_radius.setInputCloud(cloud_0);
-        sor_radius.setRadiusSearch(0.03);
-        sor_radius.setMinNeighborsInRadius(8);
+        sor_radius.setRadiusSearch(0.025);
+        sor_radius.setMinNeighborsInRadius(6);
 
         start = std::chrono::steady_clock::now();
         sor_radius.filter(*cloud_filtered);
@@ -351,17 +352,16 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
                   << "ms" << std::endl;
 
         std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
-        */
 
         /*
         auto start = std::chrono::steady_clock::now();
      thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>> idx_and_count;
      thrust::device_vector<gca::index_t> neighbor_indicies;
-     cuda_search_radius_neighbors(neighbor_indicies, idx_and_count, m_points, grid_cells_min_bound,
-                                  grid_cells_max_bound, radius);
-     auto end = std::chrono::steady_clock::now();
-     std::cout << "test run time dsearch radius: "
-               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
+     cuda_search_radius_neighbors(neighbor_indicies, idx_and_count, m_points,
+     grid_cells_min_bound, grid_cells_max_bound, radius); auto end =
+     std::chrono::steady_clock::now(); std::cout << "test run time dsearch radius: "
+               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() <<
+     "us"
                << std::endl;
      std::cout << "neighbors: " << neighbor_indicies.size() << std::endl;
         */
