@@ -61,7 +61,13 @@ __forceinline__ __device__ static float __bilateral_filter(const uint16_t *input
     return sum / sum_weight;
 }
 
-/****************** Create point cloud from rgbd, include invalid point remove ******************/
+__forceinline__ __device__ static float __adaptive_bilateral_filter(float threshold_min_in_meter,
+                                                                    float threshold_max_in_meter)
+{
+}
+
+/****************** Create point cloud from rgbd, include invalid point remove
+ ******************/
 
 __forceinline__ __device__ static void __transform_point_to_point(float to_point[3],
                                                                   const float from_point[3],
@@ -119,15 +125,22 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
 
     if (depth_x < width && depth_y < height)
     {
+        auto depth_data = __ldg(&depth_frame_data[depth_pixel_index]);
+        if (!depth_data)
+        {
+            point_set_out[depth_pixel_index].property = gca::point_property::invalid;
+            return;
+        }
+
         float depth_value;
         if (if_bilateral_filter)
-            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 3,
-                                             1000, 750) *
+            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 30,
+                                             1000, 250) *
                           depth_scale;
         else
-            depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
+            depth_value = depth_data * depth_scale;
 
-        if (depth_value <= 0.0 || depth_value < threshold_min || depth_value > threshold_max)
+        if (depth_value < threshold_min || depth_value > threshold_max)
         {
             point_set_out[depth_pixel_index].property = gca::point_property::invalid;
             return;
