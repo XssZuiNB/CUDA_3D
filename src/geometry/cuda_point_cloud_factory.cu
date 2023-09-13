@@ -38,7 +38,6 @@ __forceinline__ __device__ static float __bilateral_filter(const uint16_t *input
 
     for (int dy = -filter_radius; dy <= filter_radius; ++dy)
     {
-        // #pragma unroll
         for (int dx = -filter_radius; dx <= filter_radius; ++dx)
         {
             int nx = index_x + dx;
@@ -59,6 +58,66 @@ __forceinline__ __device__ static float __bilateral_filter(const uint16_t *input
     }
 
     return sum / sum_weight;
+}
+
+__forceinline__ __device__ static float __bilateral_filter(
+    const uint16_t *input, uint32_t input_width, uint32_t input_height, int index_x, int index_y,
+    uint16_t this_depth_data, int filter_radius, float sigma_space, float sigma_depth)
+{
+    float sum_weight = 0.0f;
+    float sum = 0.0f;
+
+    auto depth_data = this_depth_data;
+
+    for (int dy = -filter_radius; dy <= filter_radius; ++dy)
+    {
+        for (int dx = -filter_radius; dx <= filter_radius; ++dx)
+        {
+            int nx = index_x + dx;
+            int ny = index_y + dy;
+
+            if (nx < 0 || nx >= input_width || ny < 0 || ny >= input_height)
+            {
+                continue;
+            }
+
+            auto neighbor = __ldg(&input[ny * input_width + nx]);
+            float weight = __gaussian_square((dx * dx + dy * dy), sigma_space) *
+                           __gaussian(abs(depth_data - neighbor), sigma_depth);
+
+            sum_weight += weight;
+            sum += weight * neighbor;
+        }
+    }
+
+    return sum / sum_weight;
+}
+
+__forceinline__ __device__ static float __adaptive_bilateral_filter(const uint16_t *input,
+                                                                    uint32_t input_width,
+                                                                    uint32_t input_height,
+                                                                    float depth_scale, int index_x,
+                                                                    int index_y, float step_len)
+{
+    constexpr auto steps = 5;
+    constexpr auto min_filter_r = 2;
+    constexpr auto sigma_space = 100.0f;
+    constexpr auto sigma_depth = 200.0f;
+
+    auto depth_data = __ldg(&input[index_y * input_width + index_x]);
+
+    // set filter parameter
+    auto depth_value = depth_data * depth_scale;
+    auto step = static_cast<uint8_t>(depth_value / step_len);
+    if (step > steps)
+        return depth_value;
+
+    auto new_sigma_space = sigma_space + step * 20.0f;
+    auto new_sigma_depth = sigma_depth - step * 20.0f;
+    auto filter_r = min_filter_r * step;
+
+    return __bilateral_filter(input, input_width, input_height, index_x, index_y, depth_data,
+                              filter_r, new_sigma_space, new_sigma_depth);
 }
 
 /****************** Create point cloud from rgbd, include invalid point remove ******************/
@@ -121,13 +180,13 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     {
         float depth_value;
         if (if_bilateral_filter)
-            depth_value = __bilateral_filter(depth_frame_data, width, height, depth_x, depth_y, 3,
-                                             1000, 750) *
+            depth_value = __adaptive_bilateral_filter(depth_frame_data, width, height, depth_scale,
+                                                      depth_x, depth_y, 1) *
                           depth_scale;
         else
             depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
 
-        if (depth_value <= 0.0 || depth_value < threshold_min || depth_value > threshold_max)
+        if (depth_value < threshold_min || depth_value > threshold_max)
         {
             point_set_out[depth_pixel_index].property = gca::point_property::invalid;
             return;
@@ -185,7 +244,10 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     if (!depth_intrin_ptr || !color_intrin_ptr || !depth2color_extrin_ptr || !width || !height)
         return false;
 
-    if (depth_scale - 0.0 < 0.0001)
+    if (depth_scale <= 0.0000001f)
+        return false;
+
+    if (threshold_max_in_meter < threshold_min_in_meter || threshold_min_in_meter <= 0.0000001f)
         return false;
 
     auto depth_pixel_count = width * height;

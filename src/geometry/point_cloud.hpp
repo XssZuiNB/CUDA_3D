@@ -52,8 +52,8 @@ public:
     static std::shared_ptr<point_cloud> create_from_rgbd(const gca::cuda_depth_frame &depth,
                                                          const gca::cuda_color_frame &color,
                                                          const gca::cuda_camera_param &param,
-                                                         float threshold_min_in_meter = 0.0,
-                                                         float threshold_max_in_meter = 100.0);
+                                                         float threshold_min_in_meter = 0.0f,
+                                                         float threshold_max_in_meter = 10.0f);
 
     static thrust::device_vector<gca::index_t> nn_search(gca::point_cloud &query_pc,
                                                          gca::point_cloud &reference_pc,
