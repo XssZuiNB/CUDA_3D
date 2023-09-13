@@ -68,7 +68,7 @@ if (!rs_cam_1.device_start())
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
 
     // test
-
+    /*
     cv::Mat frame1, frame2, frame3; // 存储三帧
     cv::Mat gray1, gray2, gray3;    // 存储灰度帧
     cv::Mat diff12, diff23, result; // 差分图像和结果
@@ -133,7 +133,7 @@ if (!rs_cam_1.device_start())
             break;
         }
     }
-
+    */
     // 初始化背景减除器
     /* GMM
     cv::Ptr<cv::BackgroundSubtractor> pMOG2 = cv::createBackgroundSubtractorMOG2(80, 18.0);
