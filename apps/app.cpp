@@ -206,8 +206,8 @@ if (!rs_cam_1.device_start())
         }
         else
         {
-            pc_moving = pc_downsampling_0->movement_detection(*last_frame_ptr, 0.1f, 0.03f);
-            last_frame_ptr = pc_downsampling_0;
+            pc_moving = pc_0->movement_detection(*last_frame_ptr, 0.1f, 0.03f);
+            last_frame_ptr = pc_0;
         }
 
         // auto clusters = pc_downsampling_0->euclidean_clustering(0.06f, 100, 25000);
@@ -242,7 +242,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         // gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_1, *pc_remove_noise_0,
         // 1);
 
-        auto points_0 = pc_downsampling_0->download();
+        auto points_0 = pc_moving->download();
         // auto points_1 = pc_downsampling_1->download();
 
         auto number_of_points = points_0.size();
@@ -376,7 +376,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         */
 
         /* PCL Radius Outlier removal test */
-
+        /*
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
 
@@ -397,7 +397,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
                   << "ms" << std::endl;
 
         std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
-
+        */
         /*
         auto start = std::chrono::steady_clock::now();
      thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>> idx_and_count;
