@@ -2,8 +2,10 @@
 // https://github.com/niessner/VoxelHashing/blob/master/DepthSensingCUDA/Source/cuda_SimpleMatrixUtil.h
 #pragma once
 
-#ifndef _CUDA_SIMPLE_MATRIX_UTIL_
-#define _CUDA_SIMPLE_MATRIX_UTIL_
+#include <cfloat>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <iostream>
 
 #if defined(__CUDA_ARCH__)
 #define __CONDITIONAL_UNROLL__ #pragma unroll
@@ -16,10 +18,6 @@
     {                                                                                              \
         printf("ASSERT: %s %s\n", #condition, __FILE__);                                           \
     }
-
-#include <cfloat>
-#include <cuda_runtime.h>
-#include <iostream>
 
 #define MINF -__FLT_MAX__
 #define INF __FLT_MAX__
@@ -2177,5 +2175,3 @@ typedef matNxM<3, 1> mat3x1;
 typedef matNxM<1, 1> mat1x1;
 
 } // namespace gca
-
-#endif

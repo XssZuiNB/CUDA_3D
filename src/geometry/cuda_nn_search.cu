@@ -493,6 +493,7 @@ struct check_if_enough_radius_nn_functor
                                   grid_cell.y * m_n_grid_cells_z + grid_cell.z;
 
         gca::counter_t n_neighbors_in_radius = 0;
+        auto search_r_square = m_search_radius * m_search_radius;
         auto new_point = point;
 
         for (auto i = ix_begin; i < ix_end; i++)
@@ -533,17 +534,15 @@ struct check_if_enough_radius_nn_functor
                         auto euclidean_distance_square =
                             diff_x * diff_x + diff_y * diff_y + diff_z * diff_z;
 
-                        gca::counter_t condition =
-                            (euclidean_distance_square < m_search_radius * m_search_radius);
+                        gca::counter_t condition = (euclidean_distance_square < search_r_square);
                         n_neighbors_in_radius += condition;
                     }
+                    if (n_neighbors_in_radius > m_min_neighbors_in_radius)
+                        return new_point;
                 }
             }
         }
-        if (n_neighbors_in_radius <= m_min_neighbors_in_radius)
-        {
-            new_point.property = gca::point_property::invalid;
-        }
+        new_point.property = gca::point_property::invalid;
         return new_point;
     }
 };
