@@ -93,14 +93,13 @@ __forceinline__ __device__ static float __bilateral_filter(
     return sum / sum_weight;
 }
 
-__forceinline__ __device__ static float __adaptive_bilateral_filter(const uint16_t *input,
-                                                                    uint32_t input_width,
-                                                                    uint32_t input_height,
-                                                                    float depth_scale, int index_x,
-                                                                    int index_y, float step_len)
+__forceinline__ __device__ static float __adaptive_bilateral_filter(
+    const uint16_t *input, uint32_t input_width, uint32_t input_height, float depth_scale,
+    int index_x, int index_y, float threshold_min_in_meter, float threshold_max_in_meter,
+    uint32_t steps_num = 5, float step_len = 0.5, uint32_t min_filter_radius = 2)
 {
-    constexpr auto steps = 5;
-    constexpr auto min_filter_r = 2;
+    auto steps = steps_num;
+    auto min_filter_r = min_filter_radius;
     constexpr auto sigma_space = 100.0f;
     constexpr auto sigma_depth = 200.0f;
 
@@ -108,9 +107,14 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(const uint16
 
     // set filter parameter
     auto depth_value = depth_data * depth_scale;
-    auto step = static_cast<uint8_t>(depth_value / step_len);
-    if (step > steps)
+    if (depth_value < threshold_min_in_meter || depth_value > threshold_max_in_meter)
+    {
         return depth_value;
+    }
+
+    auto step = static_cast<uint32_t>(depth_value / step_len);
+    if (step > steps)
+        step = steps;
 
     auto new_sigma_space = sigma_space + step * 20.0f;
     auto new_sigma_depth = sigma_depth - step * 20.0f;
@@ -180,9 +184,10 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     {
         float depth_value;
         if (if_bilateral_filter)
-            depth_value = __adaptive_bilateral_filter(depth_frame_data, width, height, depth_scale,
-                                                      depth_x, depth_y, 1) *
-                          depth_scale;
+            depth_value =
+                __adaptive_bilateral_filter(depth_frame_data, width, height, depth_scale, depth_x,
+                                            depth_y, threshold_min, threshold_max) *
+                depth_scale;
         else
             depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
 

@@ -194,8 +194,8 @@ if (!rs_cam_1.device_start())
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.035f);
-        auto end = std::chrono::steady_clock::now();
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
+
         std::shared_ptr<gca::point_cloud> pc_moving;
 
         if (if_first_frame)
@@ -206,10 +206,10 @@ if (!rs_cam_1.device_start())
         }
         else
         {
-            pc_moving = pc_0->movement_detection(*last_frame_ptr, 0.1f, 0.03f);
-            last_frame_ptr = pc_0;
+            pc_moving = pc_downsampling_0->movement_detection(*last_frame_ptr, 0.1f, 0.03f);
+            last_frame_ptr = pc_downsampling_0;
         }
-
+        auto end = std::chrono::steady_clock::now();
         // auto clusters = pc_downsampling_0->euclidean_clustering(0.06f, 100, 25000);
 
         /*
