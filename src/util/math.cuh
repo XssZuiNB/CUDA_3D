@@ -3,8 +3,10 @@
 #pragma once
 
 #include <cfloat>
+#include <cmath>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
 #include <iostream>
 
 #if defined(__CUDA_ARCH__)
@@ -22,11 +24,9 @@
 #define MINF -__FLT_MAX__
 #define INF __FLT_MAX__
 
-namespace gca
-{
 __host__ __device__ inline float norm(const float3 &vec)
 {
-    return sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+    return sqrtf(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
 }
 
 __host__ __device__ inline float3 normalize(const float3 &vec)
@@ -58,6 +58,36 @@ __host__ __device__ inline float3 operator*(const float3 &a, float b)
 __host__ __device__ inline float3 operator*(float b, const float3 &a)
 {
     return make_float3(a.x * b, a.y * b, a.z * b);
+}
+
+__host__ __device__ float3 &operator*=(float3 &a, float b)
+{
+    a.x *= b;
+    a.y *= b;
+    a.z *= b;
+    return a;
+}
+
+__host__ __device__ inline float dot(const float3 &a, const float3 &b)
+{
+    float dot = a.x * b.x + a.y * b.y + a.z * b.z;
+    return dot;
+}
+
+__host__ __device__ inline float3 cross(const float3 &a, const float3 &b)
+{
+    return make_float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
+__host__ __device__ inline float max_coeff(const float3 &a)
+{
+    return fmaxf(fmaxf(a.x, a.y), a.z);
+}
+
+__host__ __device__ inline float max_coeff(const float3 a, int &idx)
+{
+    idx = (a.x > fmaxf(a.y, a.z)) * 0 + (a.y > fmaxf(a.x, a.z)) * 1 + (a.z > fmaxf(a.x, a.y)) * 2;
+    return *((float *)(&a) + idx);
 }
 
 __host__ __device__ inline float3 operator/(const float3 &a, float b)
@@ -452,6 +482,13 @@ public:
         m33 = values[8];
     }
 
+    inline __device__ __host__ float3x3(const float3 &row1, const float3 &row2, const float3 &row3)
+    {
+        setRow(0, row1);
+        setRow(1, row2);
+        setRow(2, row3);
+    }
+
     inline __device__ __host__ float3x3(const float3x3 &other)
     {
         m11 = other.m11;
@@ -560,12 +597,12 @@ public:
                m32 * m23 * m11 - m33 * m21 * m12;
     }
 
-    inline __device__ __host__ float3 getRow(unsigned int i)
+    inline __device__ __host__ float3 getRow(unsigned int i) const
     {
         return make_float3(entries[3 * i + 0], entries[3 * i + 1], entries[3 * i + 2]);
     }
 
-    inline __device__ __host__ void setRow(unsigned int i, float3 &r)
+    inline __device__ __host__ void setRow(unsigned int i, const float3 &r)
     {
         entries[3 * i + 0] = r.x;
         entries[3 * i + 1] = r.y;
@@ -2173,5 +2210,3 @@ typedef matNxM<1, 3> mat1x3;
 typedef matNxM<3, 1> mat3x1;
 
 typedef matNxM<1, 1> mat1x1;
-
-} // namespace gca
