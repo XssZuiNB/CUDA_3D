@@ -1,4 +1,5 @@
 #include "geometry/cuda_clustering.cuh"
+#include "geometry/cuda_estimate_normals.cuh"
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/cuda_voxel_grid_down_sample.cuh"
@@ -19,17 +20,29 @@ namespace gca
 {
 point_cloud::point_cloud(size_t n_points)
     : m_points(n_points)
+    , m_normals(n_points)
 {
 }
 
 point_cloud::point_cloud(const point_cloud &other)
     : m_points(other.m_points)
+    , m_normals(other.m_normals)
+    , m_has_normals(other.m_has_normals)
+    , m_has_bound(other.m_has_bound)
+    , m_min_bound(other.m_min_bound)
+    , m_max_bound(other.m_max_bound)
 {
 }
 
 point_cloud &point_cloud::operator=(const point_cloud &other)
 {
     m_points = other.m_points;
+    m_normals = other.m_normals;
+    m_has_normals = other.m_has_normals;
+    m_has_bound = other.m_has_bound;
+    m_min_bound = other.m_min_bound;
+    m_max_bound = other.m_max_bound;
+
     return *this;
 }
 
@@ -93,6 +106,58 @@ float3 point_cloud::get_max_bound()
         return make_float3(0.0, 0.0, 0.0);
     }
     return m_max_bound;
+}
+
+bool point_cloud::estimate_normals(float search_radius)
+{
+    if (m_has_normals)
+        return true;
+
+    if (!m_has_bound)
+    {
+        if (!compute_min_max_bound())
+        {
+            std::cout << YELLOW << "Compute bound of point cloud is not possible!" << std::endl;
+            return false;
+        }
+    }
+
+    auto padding = 1.5 * search_radius;
+    const auto grid_cells_min_bound =
+        make_float3(m_min_bound.x - padding, m_min_bound.y - padding, m_min_bound.z - padding);
+
+    const auto grid_cells_max_bound =
+        make_float3(m_max_bound.x + padding, m_max_bound.y + padding, m_max_bound.z + padding);
+
+    if (search_radius * std::numeric_limits<int>::max() <
+        max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
+                grid_cells_max_bound.y - grid_cells_min_bound.y),
+            grid_cells_max_bound.z - grid_cells_min_bound.z))
+    {
+        std::cout << YELLOW << "Radius is too small!" << std::endl;
+        return false;
+    }
+
+    auto err = cuda_estimate_normals(m_normals, m_points, grid_cells_min_bound,
+                                     grid_cells_max_bound, search_radius);
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW << "Estimate normals failed! \n" << std::endl;
+        return false;
+    }
+
+    m_has_normals = true;
+    return true;
+}
+
+const thrust::device_vector<float3> &point_cloud::get_normals()
+{
+    if (m_has_normals)
+    {
+        return m_normals;
+    }
+    std::cout << YELLOW << "Estimate normals first! Invalid normals returned! \n" << std::endl;
+    return m_normals;
 }
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)

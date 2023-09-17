@@ -22,7 +22,6 @@ public:
     void download(std::vector<point_t> &dst) const;
     std::vector<point_t> download() const;
 
-    bool compute_min_max_bound();
     float3 get_min_bound();
     float3 get_max_bound();
 
@@ -35,6 +34,10 @@ public:
     {
         return m_points.size();
     }
+
+    bool estimate_normals(float search_radius);
+
+    const thrust::device_vector<float3> &get_normals();
 
     std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size);
 
@@ -65,7 +68,12 @@ public:
     ~point_cloud() = default;
 
 private:
+    bool compute_min_max_bound();
+
+private:
     thrust::device_vector<gca::point_t> m_points;
+    thrust::device_vector<float3> m_normals;
+    bool m_has_normals = false;
     bool m_has_bound = false;
     float3 m_min_bound;
     float3 m_max_bound;

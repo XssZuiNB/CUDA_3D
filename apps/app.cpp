@@ -15,6 +15,7 @@
 
 #include <omp.h>
 
+#include <pcl/features/normal_3d.h>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
@@ -194,7 +195,8 @@ if (!rs_cam_1.device_start())
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
+        // pc_downsampling_0->estimate_normals(0.03f);
 
         std::shared_ptr<gca::point_cloud> pc_moving;
 
@@ -209,9 +211,9 @@ if (!rs_cam_1.device_start())
             pc_moving = pc_downsampling_0->movement_detection(*last_frame_ptr, 0.1f, 0.03f);
             last_frame_ptr = pc_downsampling_0;
         }
-        auto end = std::chrono::steady_clock::now();
-        // auto clusters = pc_downsampling_0->euclidean_clustering(0.06f, 100, 25000);
 
+        auto clusters = pc_downsampling_0->euclidean_clustering(0.03f, 100, 25000);
+        auto end = std::chrono::steady_clock::now();
         /*
                 auto pc_1 =
                     gca::point_cloud::create_from_rgbd(gpu_depth_1, gpu_color_1, cu_param_1,
@@ -242,7 +244,7 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
         // gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_1, *pc_remove_noise_0,
         // 1);
 
-        auto points_0 = pc_moving->download();
+        auto points_0 = pc_downsampling_0->download();
         // auto points_1 = pc_downsampling_1->download();
 
         auto number_of_points = points_0.size();
@@ -275,6 +277,27 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
             cloud_1->points[i] = p;
         }
         */
+
+        pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
+        pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
+        ne.setInputCloud(cloud_0);
+        pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(
+            new pcl::search::KdTree<pcl::PointXYZRGBA>());
+        ne.setSearchMethod(tree);
+        ne.setRadiusSearch(0.07);
+        ne.compute(*cloud_normals);
+
+        pcl::visualization::PCLVisualizer viewer("PCL Viewer");
+        viewer.setBackgroundColor(0.0, 0.0, 0.0);
+
+        viewer.addPointCloud<pcl::PointXYZRGBA>(cloud_0, "cloud");
+        viewer.addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal>(cloud_0, cloud_normals, 10,
+                                                                    0.05, "normals");
+
+        while (!viewer.wasStopped())
+        {
+            viewer.spinOnce(100);
+        }
 
         /* PCL Radius search Test */
         /*
@@ -411,8 +434,8 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
      std::cout << "neighbors: " << neighbor_indicies.size() << std::endl;
         */
 
-        viewer_0.showCloud(cloud_0);
-        // viewer_1.spinOnce();
+        // viewer_0.showCloud(cloud_0);
+        //  viewer_1.spinOnce();
         std::cout << "__________________________________________________" << std::endl;
     }
 
