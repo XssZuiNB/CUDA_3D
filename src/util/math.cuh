@@ -137,7 +137,7 @@ public:
         m22 = other.m22;
     }
 
-    inline __device__ __host__ void setZero()
+    inline __device__ __host__ void set_zero()
     {
         m11 = 0.0f;
         m12 = 0.0f;
@@ -145,10 +145,10 @@ public:
         m22 = 0.0f;
     }
 
-    static inline __device__ __host__ float2x2 getIdentity()
+    static inline __device__ __host__ float2x2 get_identity()
     {
         float2x2 res;
-        res.setZero();
+        res.set_zero();
         res.m11 = res.m22 = 1.0f;
         return res;
     }
@@ -162,7 +162,7 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float2x2 getInverse()
+    inline __device__ __host__ float2x2 get_inverse()
     {
         float2x2 res;
         res.m11 = m22;
@@ -416,7 +416,7 @@ public:
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float2x3 getTranspose()
+    inline __device__ __host__ float2x3 get_transpose()
     {
         float2x3 res;
         res.m11 = m11;
@@ -453,7 +453,7 @@ public:
     };
 };
 
-inline __device__ __host__ float2x2 matMul(const float2x3 &m0, const float3x2 &m1)
+inline __device__ __host__ float2x2 mat_mul(const float2x3 &m0, const float3x2 &m1)
 {
     float2x2 res;
     res.m11 = m0.m11 * m1.m11 + m0.m12 * m1.m21 + m0.m13 * m1.m31;
@@ -484,9 +484,9 @@ public:
 
     inline __device__ __host__ float3x3(const float3 &row1, const float3 &row2, const float3 &row3)
     {
-        setRow(0, row1);
-        setRow(1, row2);
-        setRow(2, row3);
+        set_row(0, row1);
+        set_row(1, row2);
+        set_row(2, row3);
     }
 
     inline __device__ __host__ float3x3(const float3x3 &other)
@@ -552,7 +552,7 @@ public:
         swap(m13, m31);
         swap(m23, m32);
     }
-    inline __device__ __host__ float3x3 getTranspose() const
+    inline __device__ __host__ float3x3 get_transpose() const
     {
         float3x3 ret = *this;
         ret.transpose();
@@ -562,11 +562,11 @@ public:
     //! inverts the matrix
     inline __device__ __host__ void invert()
     {
-        *this = getInverse();
+        *this = get_inverse();
     }
 
     //! computes the inverse of the matrix; the result is returned
-    inline __device__ __host__ float3x3 getInverse() const
+    inline __device__ __host__ float3x3 get_inverse() const
     {
         float3x3 res;
         res.entries[0] = entries[4] * entries[8] - entries[5] * entries[7];
@@ -584,7 +584,7 @@ public:
         return res * nom;
     }
 
-    inline __device__ __host__ void setZero(float value = 0.0f)
+    inline __device__ __host__ void set_zero(float value = 0.0f)
     {
         m11 = m12 = m13 = value;
         m21 = m22 = m23 = value;
@@ -597,26 +597,26 @@ public:
                m32 * m23 * m11 - m33 * m21 * m12;
     }
 
-    inline __device__ __host__ float3 getRow(unsigned int i) const
+    inline __device__ __host__ float3 get_row(unsigned int i) const
     {
         return make_float3(entries[3 * i + 0], entries[3 * i + 1], entries[3 * i + 2]);
     }
 
-    inline __device__ __host__ void setRow(unsigned int i, const float3 &r)
+    inline __device__ __host__ void set_row(unsigned int i, const float3 &r)
     {
         entries[3 * i + 0] = r.x;
         entries[3 * i + 1] = r.y;
         entries[3 * i + 2] = r.z;
     }
 
-    inline __device__ __host__ void normalizeRows()
+    inline __device__ __host__ void normalize_rows()
     {
         // #pragma unroll 3
         for (unsigned int i = 0; i < 3; i++)
         {
-            float3 r = getRow(i);
+            float3 r = get_row(i);
             r = r / norm(r);
-            setRow(i, r);
+            set_row(i, r);
         }
     }
 
@@ -736,22 +736,22 @@ public:
         return res;
     }
 
-    static inline __device__ __host__ float3x3 getIdentity()
+    static inline __device__ __host__ float3x3 get_identity()
     {
         float3x3 res;
-        res.setZero();
+        res.set_zero();
         res.m11 = res.m22 = res.m33 = 1.0f;
         return res;
     }
 
-    static inline __device__ __host__ float3x3 getZeroMatrix()
+    static inline __device__ __host__ float3x3 make_zero_mat()
     {
         float3x3 res;
-        res.setZero();
+        res.set_zero();
         return res;
     }
 
-    static inline __device__ __host__ float3x3 getDiagonalMatrix(float diag = 1.0f)
+    static inline __device__ __host__ float3x3 make_diagonal_mat(float diag = 1.0f)
     {
         float3x3 res;
         res.m11 = diag;
@@ -766,7 +766,7 @@ public:
         return res;
     }
 
-    static inline __device__ __host__ float3x3 tensorProduct(const float3 &v, const float3 &vt)
+    static inline __device__ __host__ float3x3 tensor_product(const float3 &v, const float3 &vt)
     {
         float3x3 res;
         res.m11 = v.x * vt.x;
@@ -808,7 +808,7 @@ public:
     };
 };
 
-inline __device__ __host__ float2x3 matMul(const float2x3 &m0, const float3x3 &m1)
+inline __device__ __host__ float2x3 mat_mul(const float2x3 &m0, const float3x3 &m1)
 {
     float2x3 res;
     res.m11 = m0.m11 * m1.m11 + m0.m12 * m1.m21 + m0.m13 * m1.m31;
@@ -822,7 +822,7 @@ inline __device__ __host__ float2x3 matMul(const float2x3 &m0, const float3x3 &m
 }
 
 // (1x2) row matrix as float2
-inline __device__ __host__ float3 matMul(const float2 &m0, const float2x3 &m1)
+inline __device__ __host__ float3 mat_mul(const float2 &m0, const float2x3 &m1)
 {
     float3 res;
     res.x = m0.x * m1.m11 + m0.y * m1.m21;
@@ -1045,13 +1045,13 @@ public:
     }
 
     //! returns the translation part of the matrix
-    inline __device__ __host__ float3 getTranslation()
+    inline __device__ __host__ float3 get_translation()
     {
         return make_float3(m14, m24, m34);
     }
 
     //! sets only the translation part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void setTranslation(const float3 &t)
+    inline __device__ __host__ void set_translation(const float3 &t)
     {
         m14 = t.x;
         m24 = t.y;
@@ -1059,7 +1059,7 @@ public:
     }
 
     //! returns the 3x3 part of the matrix
-    inline __device__ __host__ float3x3 getFloat3x3()
+    inline __device__ __host__ float3x3 get_float3x3()
     {
         float3x3 ret;
         ret.m11 = m11;
@@ -1075,7 +1075,7 @@ public:
     }
 
     //! sets the 3x3 part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void setFloat3x3(const float3x3 &other)
+    inline __device__ __host__ void set_float3x3(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1091,20 +1091,20 @@ public:
     //! inverts the matrix
     inline __device__ __host__ void inverse()
     {
-        *this = getInverse();
+        *this = get_inverse();
     }
 
     //! computes the inverse of the matrix
-    inline __device__ __host__ float3x4 getInverse()
+    inline __device__ __host__ float3x4 get_inverse()
     {
-        float3x3 A = getFloat3x3();
+        float3x3 A = get_float3x3();
         A.invert();
-        float3 t = getTranslation();
+        float3 t = get_translation();
         t = A * t;
 
         float3x4 ret;
-        ret.setFloat3x3(A);
-        ret.setTranslation(
+        ret.set_float3x3(A);
+        ret.set_translation(
             make_float3(-t.x, -t.y, -t.z)); // float3 doesn't have unary '-'... thank you cuda
         return ret;
     }
@@ -1369,7 +1369,7 @@ public:
         swap(m42, m24);
         swap(m43, m34);
     }
-    inline __device__ __host__ float4x4 getTranspose() const
+    inline __device__ __host__ float4x4 get_transpose() const
     {
         float4x4 ret = *this;
         ret.transpose();
@@ -1378,11 +1378,11 @@ public:
 
     inline __device__ __host__ void invert()
     {
-        *this = getInverse();
+        *this = get_inverse();
     }
 
     //! return the inverse matrix; but does not change the current matrix
-    inline __device__ __host__ float4x4 getInverse() const
+    inline __device__ __host__ float4x4 get_inverse() const
     {
         float inv[16];
 
@@ -1464,7 +1464,7 @@ public:
     }
 
     //! returns the 3x3 part of the matrix
-    inline __device__ __host__ float3x3 getFloat3x3()
+    inline __device__ __host__ float3x3 get_float3x3()
     {
         float3x3 ret;
         ret.m11 = m11;
@@ -1480,7 +1480,7 @@ public:
     }
 
     //! sets the 3x3 part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void setFloat3x3(const float3x3 &other)
+    inline __device__ __host__ void set_float3x3(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1494,7 +1494,7 @@ public:
     }
 
     //! sets the 4x4 part of the matrix to identity
-    inline __device__ __host__ void setIdentity()
+    inline __device__ __host__ void set_identity()
     {
         m11 = 1.0f;
         m12 = 0.0f;
@@ -1515,7 +1515,7 @@ public:
     }
 
     //! sets the 4x4 part of the matrix to identity
-    inline __device__ __host__ void setValue(float v)
+    inline __device__ __host__ void set_value(float v)
     {
         m11 = v;
         m12 = v;
@@ -1536,7 +1536,7 @@ public:
     }
 
     //! returns the 3x4 part of the matrix
-    inline __device__ __host__ float3x4 getFloat3x4()
+    inline __device__ __host__ float3x4 get_float3x4()
     {
         float3x4 ret;
         ret.m11 = m11;
@@ -1555,7 +1555,7 @@ public:
     }
 
     //! sets the 3x4 part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void setFloat3x4(const float3x4 &other)
+    inline __device__ __host__ void set_float3x4(const float3x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1646,25 +1646,25 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ void setZero()
+    inline __device__ __host__ void set_zero()
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
             entries[i] = 0.0f;
     }
 
-    inline __device__ __host__ void setIdentity()
+    inline __device__ __host__ void set_identity()
     {
-        setZero();
+        set_zero();
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < std::min(N, M); i++)
             entries2D[i][i] = 1.0f;
     }
 
-    static inline __device__ __host__ matNxM<N, M> getIdentity()
+    static inline __device__ __host__ matNxM<N, M> get_identity()
     {
         matNxM<N, M> R;
-        R.setIdentity();
+        R.set_identity();
         return R;
     }
 
@@ -1690,18 +1690,18 @@ public:
     //////////////////////////////
     // Matrix - Matrix Multiplication
     //////////////////////////////
-    template <unsigned int NOther, unsigned int MOther>
-    inline __device__ __host__ matNxM<N, MOther> operator*(
-        const matNxM<NOther, MOther> &other) const
+    template <unsigned int N_other, unsigned int M_other>
+    inline __device__ __host__ matNxM<N, M_other> operator*(
+        const matNxM<N_other, M_other> &other) const
     {
-        cudaAssert(M == NOther);
-        matNxM<N, MOther> res;
+        cudaAssert(M == N_other);
+        matNxM<N, M_other> res;
 
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
         {
             __CONDITIONAL_UNROLL__
-            for (unsigned int j = 0; j < MOther; j++)
+            for (unsigned int j = 0; j < M_other; j++)
             {
                 float sum = 0.0f;
                 __CONDITIONAL_UNROLL__
@@ -1722,12 +1722,12 @@ public:
     //////////////////////////////
 
     inline __device__ __host__ float det() const;
-    inline __device__ __host__ matNxM<N, M> getInverse() const;
+    inline __device__ __host__ matNxM<N, M> get_inverse() const;
 
     //////////////////////////////
     // Matrix - Transpose
     //////////////////////////////
-    inline __device__ __host__ matNxM<M, N> getTranspose() const
+    inline __device__ __host__ matNxM<M, N> get_transpose() const
     {
         matNxM<M, N> res;
 
@@ -1744,7 +1744,7 @@ public:
         return res;
     }
 
-    inline __device__ void printCUDA() const
+    inline __device__ void print_cuda() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1758,7 +1758,7 @@ public:
         }
     }
 
-    inline __device__ bool checkMINF() const
+    inline __device__ bool check_minf() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1774,7 +1774,7 @@ public:
         return false;
     }
 
-    inline __device__ bool checkINF() const
+    inline __device__ bool check_inf() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1790,7 +1790,7 @@ public:
         return false;
     }
 
-    inline __device__ bool checkQNAN() const
+    inline __device__ bool check_qnan() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1890,12 +1890,12 @@ public:
     //////////////////////////
     // Element Access
     //////////////////////////
-    inline __device__ __host__ unsigned int nRows()
+    inline __device__ __host__ unsigned int n_rows()
     {
         return N;
     }
 
-    inline __device__ __host__ unsigned int nCols()
+    inline __device__ __host__ unsigned int n_cols()
     {
         return M;
     }
@@ -1924,36 +1924,36 @@ public:
         return entries[i];
     }
 
-    template <unsigned int NOther, unsigned int MOther>
-    inline __device__ __host__ void getBlock(unsigned int xStart, unsigned int yStart,
-                                             matNxM<NOther, MOther> &res) const
+    template <unsigned int N_other, unsigned int M_other>
+    inline __device__ __host__ void get_block(unsigned int x_start, unsigned int y_start,
+                                              matNxM<N_other, M_other> &res) const
     {
-        cudaAssert(xStart + NOther <= N && yStart + MOther <= M);
+        cudaAssert(x_start + N_other <= N && y_start + M_other <= M);
 
         __CONDITIONAL_UNROLL__
-        for (unsigned int i = 0; i < NOther; i++)
+        for (unsigned int i = 0; i < N_other; i++)
         {
             __CONDITIONAL_UNROLL__
-            for (unsigned int j = 0; j < MOther; j++)
+            for (unsigned int j = 0; j < M_other; j++)
             {
-                res(i, j) = (*this)(xStart + i, yStart + j);
+                res(i, j) = (*this)(x_start + i, y_start + j);
             }
         }
     }
 
-    template <unsigned int NOther, unsigned int MOther>
-    inline __device__ __host__ void setBlock(matNxM<NOther, MOther> &input, unsigned int xStart,
-                                             unsigned int yStart)
+    template <unsigned int N_other, unsigned int M_other>
+    inline __device__ __host__ void setBlock(matNxM<N_other, M_other> &input, unsigned int x_start,
+                                             unsigned int y_start)
     {
-        cudaAssert(xStart + NOther <= N && yStart + MOther <= M);
+        cudaAssert(x_start + N_other <= N && y_start + M_other <= M);
 
         __CONDITIONAL_UNROLL__
-        for (unsigned int i = 0; i < NOther; i++)
+        for (unsigned int i = 0; i < N_other; i++)
         {
             __CONDITIONAL_UNROLL__
-            for (unsigned int j = 0; j < MOther; j++)
+            for (unsigned int j = 0; j < M_other; j++)
             {
-                (*this)(xStart + i, yStart + j) = input(i, j);
+                (*this)(x_start + i, y_start + j) = input(i, j);
             }
         }
     }
@@ -1969,7 +1969,7 @@ public:
 
     // Operators
 
-    inline __device__ __host__ float norm1DSquared() const
+    inline __device__ __host__ float norm_1d_squared() const
     {
         cudaAssert(M == 1 || N == 1);
 
@@ -1980,9 +1980,9 @@ public:
         return sum;
     }
 
-    inline __device__ __host__ float norm1D() const
+    inline __device__ __host__ float norm_1d() const
     {
-        return sqrt(norm1DSquared());
+        return sqrt(norm_1d_squared());
     }
 
 private:
@@ -2025,7 +2025,7 @@ template <> inline __device__ __host__ float matNxM<3, 3>::det() const
            m33 * m21 * m12;
 }
 
-template <> inline __device__ __host__ matNxM<3, 3> matNxM<3, 3>::getInverse() const
+template <> inline __device__ __host__ matNxM<3, 3> matNxM<3, 3>::get_inverse() const
 {
     matNxM<3, 3> res;
     res.entries[0] = entries[4] * entries[8] - entries[5] * entries[7];
@@ -2047,7 +2047,7 @@ template <> inline __device__ __host__ float matNxM<2, 2>::det() const
     return (*this)(0, 0) * (*this)(1, 1) - (*this)(1, 0) * (*this)(0, 1);
 }
 
-template <> inline __device__ __host__ matNxM<2, 2> matNxM<2, 2>::getInverse() const
+template <> inline __device__ __host__ matNxM<2, 2> matNxM<2, 2>::get_inverse() const
 {
     matNxM<2, 2> res;
     res(0, 0) = (*this)(1, 1);

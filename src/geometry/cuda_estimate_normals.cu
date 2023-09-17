@@ -2,6 +2,7 @@
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+#include "util/math.cuh"
 #include "util/numeric.cuh"
 
 #include <cuda.h>
@@ -10,6 +11,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/transform.h>
 
@@ -32,30 +35,88 @@ struct fill_keys_functor
     }
 };
 
-struct sum_points_functor
+struct compute_cumulant_functor
 {
-    sum_points_functor(const thrust::device_vector<gca::point_t> &points,
-                       const thrust::device_vector<gca::index_t> &all_neighbors_idx)
+    compute_cumulant_functor(const thrust::device_vector<gca::point_t> &points)
         : m_points_ptr(thrust::raw_pointer_cast(points.data()))
-        , m_all_neighbors_idx_ptr(thrust::raw_pointer_cast(all_neighbors_idx.data()))
     {
     }
 
     const gca::point_t *m_points_ptr;
-    const gca::index_t *m_all_neighbors_idx_ptr;
 
-    __forceinline__ __device__ float3
-    operator()(const thrust::pair<gca::index_t, gca::counter_t> &pair)
+    __forceinline__ __device__ mat9x1 operator()(gca::index_t idx) const
     {
-        auto idx = __ldg(&m_all_neighbors_idx_ptr[pair.first]);
-        auto sum_x = __ldg(&(m_points_ptr[idx].coordinates.x));
-        auto sum_y = __ldg(&(m_points_ptr[idx].coordinates.x));
-        auto sum_z = __ldg(&(m_points_ptr[idx].coordinates.x));
+        mat9x1 cm;
+        cm.set_zero();
 
-        for (gca::counter_t i = 0; i < pair.second; i++)
+        if (idx < 0)
+            return cm;
+
+        const auto point_x = __ldg(&m_points_ptr[idx].coordinates.x);
+        const auto point_y = __ldg(&m_points_ptr[idx].coordinates.y);
+        const auto point_z = __ldg(&m_points_ptr[idx].coordinates.z);
+
+        cm(0) = point_x;
+        cm(1) = point_y;
+        cm(2) = point_z;
+        cm(3) = point_x * point_x;
+        cm(4) = point_x * point_y;
+        cm(5) = point_x * point_z;
+        cm(6) = point_y * point_y;
+        cm(7) = point_y * point_z;
+        cm(8) = point_z * point_z;
+
+        return cm;
+    }
+};
+
+struct compute_normal_functor
+{
+    compute_normal_functor(){};
+
+    __device__ float3
+    operator()(const thrust::tuple<mat9x1, thrust::pair<gca::index_t, gca::counter_t>> &tuple) const
+    {
+        auto count = thrust::get<1>(tuple).second;
+        if (count < 3)
         {
-            auto idx = __ldg(&m_all_neighbors_idx_ptr[pair.first + i]);
+            return make_float3(0.0f, 0.0f, 0.0f);
         }
+
+        auto cum = thrust::get<0>(tuple);
+        auto cumulants = cum / (float)count;
+
+        mat3x3 covariance;
+        covariance(0, 0) = cumulants(3) - cumulants(0) * cumulants(0);
+        covariance(1, 1) = cumulants(6) - cumulants(1) * cumulants(1);
+        covariance(2, 2) = cumulants(8) - cumulants(2) * cumulants(2);
+        covariance(0, 1) = cumulants(4) - cumulants(0) * cumulants(1);
+        covariance(1, 0) = covariance(0, 1);
+        covariance(0, 2) = cumulants(5) - cumulants(0) * cumulants(2);
+        covariance(2, 0) = covariance(0, 2);
+        covariance(1, 2) = cumulants(7) - cumulants(1) * cumulants(2);
+        covariance(2, 1) = covariance(1, 2);
+
+        auto eigen_result = fast_eigen_compute_3x3_symm(covariance);
+
+        auto eigen_pair_0 = thrust::get<0>(eigen_result);
+        auto eigen_pair_1 = thrust::get<1>(eigen_result);
+        auto eigen_pair_2 = thrust::get<2>(eigen_result);
+
+        float3 normal;
+        if (eigen_pair_0.first < eigen_pair_1.first && eigen_pair_0.first < eigen_pair_2.first)
+        {
+            normal = eigen_pair_0.second;
+        }
+        else if (eigen_pair_1.first < eigen_pair_0.first && eigen_pair_1.first < eigen_pair_2.first)
+        {
+            normal = eigen_pair_0.second;
+        }
+        else
+            normal = eigen_pair_0.second;
+
+        return (norm3df(normal.x, normal.y, normal.z) >= 0.0) ? normal
+                                                              : make_float3(0.0f, 0.0f, 0.0f);
     }
 };
 
@@ -81,11 +142,6 @@ struct sum_points_functor
         return err;
     }
 
-    thrust::device_vector<float3> point_coordinates_mean(n_points);
-    thrust::transform(pair_neighbors_begin_idx_and_count.begin(),
-                      pair_neighbors_begin_idx_and_count.end(), point_coordinates_mean.begin(),
-                      sum_points_functor(points, all_neighbors));
-    /*
     thrust::device_vector<gca::index_t> keys_(all_neighbors.size(), 0);
     thrust::device_vector<gca::index_t> keys(all_neighbors.size());
     thrust::for_each(pair_neighbors_begin_idx_and_count.begin() + 1,
@@ -103,8 +159,18 @@ struct sum_points_functor
         return err;
     }
 
-    thrust::reduce_by_key();
-    */
+    thrust::device_vector<mat9x1> cumulants_sum(n_points);
+    auto compute_cumulant_iter =
+        thrust::make_transform_iterator(all_neighbors.begin(), compute_cumulant_functor(points));
+    thrust::reduce_by_key(keys.begin(), keys.end(), compute_cumulant_iter,
+                          thrust::make_discard_iterator(), cumulants_sum.begin());
+
+    thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
+                          cumulants_sum.begin(), pair_neighbors_begin_idx_and_count.begin())),
+                      thrust::make_zip_iterator(thrust::make_tuple(
+                          cumulants_sum.end(), pair_neighbors_begin_idx_and_count.end())),
+                      result_normals.begin(), compute_normal_functor());
+
     return ::cudaSuccess;
 }
 } // namespace gca

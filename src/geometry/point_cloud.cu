@@ -160,6 +160,13 @@ const thrust::device_vector<float3> &point_cloud::get_normals()
     return m_normals;
 }
 
+std::vector<float3> point_cloud::download_normals() const
+{
+    std::vector<float3> temp(m_normals.size());
+    thrust::copy(m_normals.begin(), m_normals.end(), temp.begin());
+    return temp;
+}
+
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
 {
     auto output = std::make_shared<point_cloud>(m_points.size());

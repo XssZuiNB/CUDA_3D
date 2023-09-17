@@ -23,6 +23,7 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/point_types.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/region_growing_rgb.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
@@ -44,26 +45,18 @@ int main(int argc, char *argv[])
     auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
-    /*
-auto rs_cam_1 = gca::realsense_device(1, 640, 480, 60);
-if (!rs_cam_1.device_start())
-    return 1;*/
 
     gca::cuda_camera_param cu_param_0(rs_cam_0);
-    // gca::cuda_camera_param cu_param_1(rs_cam_1);
 
     typedef pcl::PointXYZRGBA PointT;
     typedef pcl::PointCloud<PointT> PointCloud;
 
     PointCloud::Ptr cloud_0(new PointCloud);
+    pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
     pcl::visualization::CloudViewer viewer_0("viewer0");
-    // PointCloud::Ptr cloud_1(new PointCloud);
-    // pcl::visualization::CloudViewer viewer_1("viewer1");
 
     gca::cuda_color_frame gpu_color_0(rs_cam_0.get_width(), rs_cam_0.get_height());
     gca::cuda_depth_frame gpu_depth_0(rs_cam_0.get_width(), rs_cam_0.get_height());
-    // gca::cuda_color_frame gpu_color_1(rs_cam_1.get_width(), rs_cam_1.get_height());
-    // gca::cuda_depth_frame gpu_depth_1(rs_cam_1.get_width(), rs_cam_1.get_height());
 
     bool if_first_frame = true;
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
@@ -180,24 +173,20 @@ if (!rs_cam_1.device_start())
         rs_cam_0.receive_data();
         auto color_0 = rs_cam_0.get_color_raw_data();
         auto depth_0 = rs_cam_0.get_depth_raw_data();
-        /*
-        rs_cam_1.receive_data();
-        auto color_1 = rs_cam_1.get_color_raw_data();
-        auto depth_1 = rs_cam_1.get_depth_raw_data();*/
-        auto start = std::chrono::steady_clock::now();
+
         gpu_color_0.upload((uint8_t *)color_0, rs_cam_0.get_width(), rs_cam_0.get_height());
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
-        // gpu_color_1.upload((uint8_t *)color_1, 640, 480);
-        // gpu_depth_1.upload((uint16_t *)depth_1, 640, 480);
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 4);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 2.5);
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
-        // pc_downsampling_0->estimate_normals(0.03f);
 
+        auto start = std::chrono::steady_clock::now();
+        pc_remove_noise_0->estimate_normals(0.02f);
+        auto end = std::chrono::steady_clock::now();
         std::shared_ptr<gca::point_cloud> pc_moving;
 
         if (if_first_frame)
@@ -212,14 +201,8 @@ if (!rs_cam_1.device_start())
             last_frame_ptr = pc_downsampling_0;
         }
 
-        auto clusters = pc_downsampling_0->euclidean_clustering(0.03f, 100, 25000);
-        auto end = std::chrono::steady_clock::now();
-        /*
-                auto pc_1 =
-                    gca::point_cloud::create_from_rgbd(gpu_depth_1, gpu_color_1, cu_param_1,
-           0.2, 6.0); auto pc_downsampling_1 = pc_1->voxel_grid_down_sample(0.045f); auto
-           pc_remove_noise_1 = pc_downsampling_1->radius_outlier_removal(0.09, 10);
-        */
+        // auto clusters = pc_downsampling_0->euclidean_clustering(0.03f, 100, 25000);
+
         std::cout << "Total cuda time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;
@@ -231,74 +214,78 @@ if (!rs_cam_1.device_start())
         std::cout << "GPU pc1 after remove noise number: " << pc_remove_noise_0->points_number()
                   << std::endl;
         std::cout << "GPU pc1 Voxel number: " << pc_downsampling_0->points_number() << std::endl;
-        // std::cout << "GPU cluster num: " << clusters.second << std::endl;
-        //  std::cout << "GPU pc2 Voxel number: " << pc_downsampling_1->points_number() <<
-        //  std::endl;
-        /*std::cout << "GPU pc1 after radius outlier removal points number: "
-                  << pc_remove_noise_0->points_number() << std::endl;
 
-std::cout << "GPU pc2 after radius outlier removal points number: "
-        << pc_remove_noise_1->points_number() << std::endl;*/
-
-        // std::vector<gca::index_t> result_nn_idx_cuda;
-        // gca::point_cloud::nn_search(result_nn_idx_cuda, *pc_remove_noise_1, *pc_remove_noise_0,
-        // 1);
-
-        auto points_0 = pc_downsampling_0->download();
-        // auto points_1 = pc_downsampling_1->download();
+        auto points_0 = pc_remove_noise_0->download();
+        auto normals_0 = pc_remove_noise_0->download_normals();
 
         auto number_of_points = points_0.size();
         cloud_0->points.resize(number_of_points);
+        // normals->points.resize(number_of_points);
 
         for (size_t i = 0; i < number_of_points; i++)
         {
             PointT p;
             p.x = points_0[i].coordinates.x;
-            p.y = -points_0[i].coordinates.y;
-            p.z = -points_0[i].coordinates.z;
+            p.y = points_0[i].coordinates.y;
+            p.z = points_0[i].coordinates.z;
             p.r = points_0[i].color.r * 255;
             p.g = points_0[i].color.g * 255;
             p.b = points_0[i].color.b * 255;
             cloud_0->points[i] = p;
+            /*
+                        pcl::Normal n;
+                        n.normal_x = normals_0[i].x;
+                        n.normal_y = normals_0[i].y;
+                        n.normal_z = normals_0[i].z;
+                        normals->points[i] = n;
+                        */
         }
 
-        /*
-        number_of_points = points_1.size();
-        cloud_1->points.resize(number_of_points);
-        for (size_t i = 0; i < number_of_points; i++)
-        {
-            PointT p;
-            p.x = points_1[i].coordinates.x;
-            p.y = -points_1[i].coordinates.y;
-            p.z = -points_1[i].coordinates.z;
-            p.r = points_1[i].color.r * 255;
-            p.g = points_1[i].color.g * 255;
-            p.b = points_1[i].color.b * 255;
-            cloud_1->points[i] = p;
-        }
-        */
-
+        start = std::chrono::steady_clock::now();
         pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
-        pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
         ne.setInputCloud(cloud_0);
+
         pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(
             new pcl::search::KdTree<pcl::PointXYZRGBA>());
         ne.setSearchMethod(tree);
-        ne.setRadiusSearch(0.07);
-        ne.compute(*cloud_normals);
 
-        pcl::visualization::PCLVisualizer viewer("PCL Viewer");
-        viewer.setBackgroundColor(0.0, 0.0, 0.0);
-
-        viewer.addPointCloud<pcl::PointXYZRGBA>(cloud_0, "cloud");
-        viewer.addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal>(cloud_0, cloud_normals, 10,
-                                                                    0.05, "normals");
-
-        while (!viewer.wasStopped())
+        ne.setRadiusSearch(0.02);
+        ne.compute(*normals);
+        end = std::chrono::steady_clock::now();
+        std::cout << "pcl time in milliseconds: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
+        /*
+        for (size_t i = 0; i < normals->size(); ++i)
         {
-            viewer.spinOnce(100);
+            std::cout << "Normal for point " << i << ": " << normals->points[i].normal_x << ", "
+                      << normals->points[i].normal_y << ", " << normals->points[i].normal_z
+                      << std::endl;
+            std::cout << "gpu Normal       " << i << ": " << normals_0[i].x << ", "
+                      << normals_0[i].y << ", " << normals_0[i].z << std::endl;
         }
+        */
+        /*
+        start = std::chrono::steady_clock::now();
+        pcl::search::Search<pcl::PointXYZRGBA>::Ptr tree(
+            new pcl::search::KdTree<pcl::PointXYZRGBA>);
 
+        pcl::RegionGrowingRGB<pcl::PointXYZRGBA> reg;
+        reg.setInputCloud(cloud_0);
+        reg.setSearchMethod(tree);
+
+        reg.setDistanceThreshold(10);
+        reg.setPointColorThreshold(6);
+        reg.setRegionColorThreshold(5);
+
+        std::vector<pcl::PointIndices> clusters;
+        reg.extract(clusters);
+        end = std::chrono::steady_clock::now();
+        std::cout << "region: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << std::endl;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud = reg.getColoredCloud();
+        */
         /* PCL Radius search Test */
         /*
         start = std::chrono::steady_clock::now();
@@ -434,8 +421,8 @@ std::cout << "GPU pc2 after radius outlier removal points number: "
      std::cout << "neighbors: " << neighbor_indicies.size() << std::endl;
         */
 
-        // viewer_0.showCloud(cloud_0);
-        //  viewer_1.spinOnce();
+        viewer_0.showCloud(cloud_0);
+        //   viewer_1.spinOnce();
         std::cout << "__________________________________________________" << std::endl;
     }
 

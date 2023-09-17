@@ -39,6 +39,8 @@ public:
 
     const thrust::device_vector<float3> &get_normals();
 
+    std::vector<float3> download_normals() const;
+
     std::shared_ptr<point_cloud> voxel_grid_down_sample(float voxel_size);
 
     std::shared_ptr<point_cloud> radius_outlier_removal(float radius,

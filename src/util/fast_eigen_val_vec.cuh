@@ -115,9 +115,9 @@ using eval_evec_pair = thrust::pair<float, float3>;
 __forceinline__ __device__ thrust::tuple<eval_evec_pair, eval_evec_pair, eval_evec_pair>
 fast_eigen_compute_3x3_symm(const float3x3 &A)
 {
-    auto row1 = A.getRow(0);
-    auto row2 = A.getRow(1);
-    auto row3 = A.getRow(2);
+    auto row1 = A.get_row(0);
+    auto row2 = A.get_row(1);
+    auto row3 = A.get_row(2);
 
     auto abs_max_1 = fmaxf(fmaxf(fabsf(row1.x), fabsf(row1.y)), fabsf(row1.z));
     auto abs_max_2 = fmaxf(abs_max_1, fmaxf(fabsf(row2.y), fabsf(row2.z)));
