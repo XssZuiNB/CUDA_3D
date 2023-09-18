@@ -110,10 +110,10 @@ struct compute_normal_functor
         }
         else if (eigen_pair_1.first < eigen_pair_0.first && eigen_pair_1.first < eigen_pair_2.first)
         {
-            normal = eigen_pair_0.second;
+            normal = eigen_pair_1.second;
         }
         else
-            normal = eigen_pair_0.second;
+            normal = eigen_pair_2.second;
 
         return (norm3df(normal.x, normal.y, normal.z) >= 0.0) ? normal
                                                               : make_float3(0.0f, 0.0f, 0.0f);
