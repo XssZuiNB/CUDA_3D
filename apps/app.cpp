@@ -178,14 +178,14 @@ int main(int argc, char *argv[])
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 4);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 3.8);
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
 
         auto start = std::chrono::steady_clock::now();
-        pc_remove_noise_0->estimate_normals(0.02f);
+        pc_downsampling_0->estimate_normals(0.04f);
         auto end = std::chrono::steady_clock::now();
         std::shared_ptr<gca::point_cloud> pc_moving;
 
@@ -215,8 +215,8 @@ int main(int argc, char *argv[])
                   << std::endl;
         std::cout << "GPU pc1 Voxel number: " << pc_downsampling_0->points_number() << std::endl;
 
-        auto points_0 = pc_remove_noise_0->download();
-        auto normals_0 = pc_remove_noise_0->download_normals();
+        auto points_0 = pc_downsampling_0->download();
+        auto normals_0 = pc_downsampling_0->download_normals();
 
         auto number_of_points = points_0.size();
         cloud_0->points.resize(number_of_points);
@@ -226,8 +226,8 @@ int main(int argc, char *argv[])
         {
             PointT p;
             p.x = points_0[i].coordinates.x;
-            p.y = points_0[i].coordinates.y;
-            p.z = points_0[i].coordinates.z;
+            p.y = -points_0[i].coordinates.y;
+            p.z = -points_0[i].coordinates.z;
             p.r = points_0[i].color.r * 255;
             p.g = points_0[i].color.g * 255;
             p.b = points_0[i].color.b * 255;
@@ -235,8 +235,8 @@ int main(int argc, char *argv[])
             /*
                         pcl::Normal n;
                         n.normal_x = normals_0[i].x;
-                        n.normal_y = normals_0[i].y;
-                        n.normal_z = normals_0[i].z;
+                        n.normal_y = -normals_0[i].y;
+                        n.normal_z = -normals_0[i].z;
                         normals->points[i] = n;
                         */
         }
