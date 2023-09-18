@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 2.5);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 4);
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
