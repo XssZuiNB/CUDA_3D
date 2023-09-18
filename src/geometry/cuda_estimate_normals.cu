@@ -164,12 +164,22 @@ struct compute_normal_functor
         thrust::make_transform_iterator(all_neighbors.begin(), compute_cumulant_functor(points));
     thrust::reduce_by_key(keys.begin(), keys.end(), compute_cumulant_iter,
                           thrust::make_discard_iterator(), cumulants_sum.begin());
+    err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+    {
+        return err;
+    }
 
     thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
                           cumulants_sum.begin(), pair_neighbors_begin_idx_and_count.begin())),
                       thrust::make_zip_iterator(thrust::make_tuple(
                           cumulants_sum.end(), pair_neighbors_begin_idx_and_count.end())),
                       result_normals.begin(), compute_normal_functor());
+    err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+    {
+        return err;
+    }
 
     return ::cudaSuccess;
 }
