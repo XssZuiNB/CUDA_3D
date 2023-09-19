@@ -292,41 +292,102 @@ struct check_if_queue_empty_functor
     total_clusters = cluster;
 
     return ::cudaSuccess;
-} // namespace gca
+}
 
-/*
-::cudaError_t cuda_set_cluster_color(thrust::device_vector<gca::point_t> &result_points,
-                                     const thrust::device_vector<gca::index_t>
-&cluster_of_point, const thrust::device_vector<gca::point_t> &src_points)
+::cudaError_t cuda_euclidean_over_segmentation(std::vector<gca::index_t> &cluster_of_point,
+                                               gca::counter_t &total_clusters,
+                                               const thrust::device_vector<gca::point_t> &points,
+                                               const float3 min_bound, const float3 max_bound,
+                                               const float cluster_tolerance,
+                                               const gca::counter_t min_cluster_size,
+                                               const gca::counter_t max_cluster_size)
 {
-    auto n_points = src_points.size();
-    if (cluster_of_point.size() != n_points)
+    if (min_cluster_size <= 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
     {
         return ::cudaErrorInvalidValue;
     }
 
-    if (result_points.size() != n_points)
+    auto n_points = points.size();
+    if (cluster_of_point.size() != n_points)
     {
-        result_points.resize(n_points);
+        cluster_of_point.resize(n_points);
     }
 
-    thrust::device_vector<gca::index_t> index_vec(n_points);
-    thrust::sequence(index_vec.begin(), index_vec.end());
-    auto err = cudaGetLastError();
+    thrust::device_vector<gca::index_t> all_neighbors;
+    thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
+        pair_neighbors_begin_idx_and_count(n_points);
+
+    auto err = cuda_search_radius_neighbors(all_neighbors, pair_neighbors_begin_idx_and_count,
+                                            points, min_bound, max_bound, cluster_tolerance);
     if (err != ::cudaSuccess)
     {
         return err;
     }
 
-    thrust::sort_by_key(cluster_of_point.begin(), cluster_of_point.end(), index_vec.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    std::vector<gca::index_t> all_neighbors_host(all_neighbors.size());
+    std::vector<thrust::pair<gca::index_t, gca::counter_t>> pair_neighbors_begin_idx_and_count_host(
+        n_points);
 
-    auto get_point_with_sorted_index_iter =
-        thrust::make_permutation_iterator(src_points.begin(), index_vec.begin());
+    thrust::copy(all_neighbors.begin(), all_neighbors.end(), all_neighbors_host.begin());
+    thrust::copy(pair_neighbors_begin_idx_and_count.begin(),
+                 pair_neighbors_begin_idx_and_count.end(),
+                 pair_neighbors_begin_idx_and_count_host.begin());
+
+    std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
+    gca::index_t cluster = 0;
+
+    for (gca::index_t i = 0; i < n_points; i++)
+    {
+        if (visited[i])
+        {
+            continue;
+        }
+
+        std::vector<gca::index_t> seed_queue;
+        gca::index_t sq_idx = 0;
+        seed_queue.push_back(i);
+
+        visited[i] = 1;
+
+        while (sq_idx < static_cast<gca::index_t>(seed_queue.size()))
+        {
+
+            auto this_p = seed_queue[sq_idx];
+            auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[this_p].first;
+            auto n_neighbors = pair_neighbors_begin_idx_and_count_host[this_p].second;
+
+            for (gca::index_t j = 0; j < n_neighbors; j++)
+            {
+                auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
+                if (visited[neighbor])
+                    continue;
+
+                visited[neighbor] = 1;
+                seed_queue.push_back(neighbor);
+            }
+
+            sq_idx++;
+        }
+
+        if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
+        {
+            for (const auto &neighbor : seed_queue)
+            {
+                cluster_of_point[neighbor] = cluster;
+            }
+            cluster++;
+        }
+        else
+        {
+            for (const auto &neighbor : seed_queue)
+            {
+                cluster_of_point[neighbor] = -1;
+            }
+        }
+    }
+    total_clusters = cluster;
+
+    return ::cudaSuccess;
 }
-*/
+
 } // namespace gca

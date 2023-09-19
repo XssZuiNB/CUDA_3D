@@ -112,8 +112,8 @@ __forceinline__ __device__ static float3 __compute_eigenvector_2(const float3x3 
 
 using eval_evec_pair = thrust::pair<float, float3>;
 // The input matrix must be symmetric ！！！
-__forceinline__ __device__ thrust::tuple<eval_evec_pair, eval_evec_pair, eval_evec_pair>
-fast_eigen_compute_3x3_symm(const float3x3 &A)
+__forceinline__ __device__ auto fast_eigen_compute_3x3_symm(const float3x3 &A)
+    -> thrust::tuple<eval_evec_pair, eval_evec_pair, eval_evec_pair>
 {
     auto row1 = A.get_row(0);
     auto row2 = A.get_row(1);

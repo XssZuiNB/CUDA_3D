@@ -315,21 +315,7 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
                   << std::endl;
         return std::make_pair(cluster_of_point, 0);
     }
-    /*
-    thrust::device_vector<gca::index_t> cluster_dev(m_points.size());
-    gca::counter_t n_clusters;
-    auto err = cuda_euclidean_clustering(cluster_dev, n_clusters, m_points, grid_cells_min_bound,
-                                         grid_cells_max_bound, cluster_tolerance, min_cluster_size,
-                                         max_cluster_size);
-    if (err != ::cudaSuccess)
-    {
-        std::cout << YELLOW << "Radius outlier removal failed, a invalid point cloud returned!\n "
-                  << std::endl;
-        return std::make_pair(cluster_of_point, 0);
-    }
 
-    thrust::copy(cluster_dev.begin(), cluster_dev.end(), cluster_of_point->begin());
-    */
     gca::counter_t n_clusters;
 
     auto err = cuda_euclidean_clustering(*cluster_of_point, n_clusters, m_points,

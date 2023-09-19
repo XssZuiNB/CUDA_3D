@@ -18,9 +18,9 @@
 
 namespace gca
 {
-struct fill_keys_functor
+struct fill_start_keys_functor
 {
-    fill_keys_functor(thrust::device_vector<gca::index_t> &keys)
+    fill_start_keys_functor(thrust::device_vector<gca::index_t> &keys)
         : m_keys_ptr(thrust::raw_pointer_cast(keys.data()))
     {
     }
@@ -145,7 +145,7 @@ struct compute_normal_functor
     thrust::device_vector<gca::index_t> keys_(all_neighbors.size(), 0);
     thrust::device_vector<gca::index_t> keys(all_neighbors.size());
     thrust::for_each(pair_neighbors_begin_idx_and_count.begin() + 1,
-                     pair_neighbors_begin_idx_and_count.end(), fill_keys_functor(keys_));
+                     pair_neighbors_begin_idx_and_count.end(), fill_start_keys_functor(keys_));
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
     {
