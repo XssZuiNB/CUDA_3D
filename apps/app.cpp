@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
+    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
 
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 2);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 4);
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 4);
 
@@ -273,22 +273,22 @@ int main(int argc, char *argv[])
         }
 
         pcl::search::Search<pcl::PointXYZRGBA>::Ptr tree =
-            std::shared_ptr<pcl::search::Search<pcl::PointXYZRGBA>>(
+            boost::shared_ptr<pcl::search::Search<pcl::PointXYZRGBA>>(
                 new pcl::search::KdTree<pcl::PointXYZRGBA>);
         pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
 
         pcl::RegionGrowingRGB<pcl::PointXYZRGBA> reg;
         reg.setInputCloud(cloud_1);
         reg.setSearchMethod(tree);
-        reg.setDistanceThreshold(0.02);
-        reg.setPointColorThreshold(6);
+        reg.setDistanceThreshold(0.03);
+        reg.setPointColorThreshold(5);
         reg.setRegionColorThreshold(0);
-        reg.setMinClusterSize(60);
+        reg.setMinClusterSize(10);
 
         std::vector<pcl::PointIndices> cluster_indices;
         reg.extract(cluster_indices);
 
-        // 2. 对每个聚类进行ICP配准
+        start = std::chrono::steady_clock::now();
         for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin();
              it != cluster_indices.end(); ++it)
         {
@@ -310,9 +310,10 @@ int main(int argc, char *argv[])
 
             // 3. 计算每个聚类的平均残差
             double avg_residual = icp.getFitnessScore();
+            std::cout << "residual: " << avg_residual << std::endl;
 
             // 4. 标记残差大的聚类
-            if (avg_residual > 0.0005)
+            if (avg_residual > 0.008)
             {
                 for (std::vector<int>::const_iterator pit = it->indices.begin();
                      pit != it->indices.end(); ++pit)
@@ -323,6 +324,11 @@ int main(int argc, char *argv[])
                 }
             }
         }
+        end = std::chrono::steady_clock::now();
+
+        std::cout << "residual: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
 
         /*
         pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
