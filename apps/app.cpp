@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 30);
+    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
 
@@ -201,11 +201,11 @@ int main(int argc, char *argv[])
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 4);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 2);
 
-        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
+        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 4);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.03f);
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
 
         pc_downsampling_0->estimate_normals(0.06f);
         auto end = std::chrono::steady_clock::now();
@@ -272,18 +272,21 @@ int main(int argc, char *argv[])
                         */
         }
 
-        pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(
-            new pcl::search::KdTree<pcl::PointXYZRGBA>);
-        tree->setInputCloud(cloud_1);
+        pcl::search::Search<pcl::PointXYZRGBA>::Ptr tree =
+            std::shared_ptr<pcl::search::Search<pcl::PointXYZRGBA>>(
+                new pcl::search::KdTree<pcl::PointXYZRGBA>);
+        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+
+        pcl::RegionGrowingRGB<pcl::PointXYZRGBA> reg;
+        reg.setInputCloud(cloud_1);
+        reg.setSearchMethod(tree);
+        reg.setDistanceThreshold(0.02);
+        reg.setPointColorThreshold(6);
+        reg.setRegionColorThreshold(0);
+        reg.setMinClusterSize(60);
 
         std::vector<pcl::PointIndices> cluster_indices;
-        pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
-        ec.setClusterTolerance(0.06);
-        ec.setMinClusterSize(100);
-        ec.setMaxClusterSize(25000);
-        ec.setSearchMethod(tree);
-        ec.setInputCloud(cloud_1);
-        ec.extract(cluster_indices);
+        reg.extract(cluster_indices);
 
         // 2. 对每个聚类进行ICP配准
         for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin();
@@ -299,6 +302,7 @@ int main(int argc, char *argv[])
             cloud_cluster->is_dense = true;
 
             pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
+            icp.setMaximumIterations(0);
             icp.setInputSource(cloud_cluster);
             icp.setInputTarget(cloud_0);
             pcl::PointCloud<pcl::PointXYZRGBA> Final;
@@ -308,7 +312,7 @@ int main(int argc, char *argv[])
             double avg_residual = icp.getFitnessScore();
 
             // 4. 标记残差大的聚类
-            if (avg_residual > 0.003)
+            if (avg_residual > 0.0005)
             {
                 for (std::vector<int>::const_iterator pit = it->indices.begin();
                      pit != it->indices.end(); ++pit)
