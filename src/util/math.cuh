@@ -24,43 +24,43 @@
 #define MINF -__FLT_MAX__
 #define INF __FLT_MAX__
 
-__host__ __device__ inline float norm(const float3 &vec)
+__host__ __device__ __forceinline__ float norm(const float3 &vec)
 {
     return sqrtf(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
 }
 
-__host__ __device__ inline float3 normalize(const float3 &vec)
+__host__ __device__ __forceinline__ float3 normalize(const float3 &vec)
 {
     float vec_norm = norm(vec);
     return make_float3(vec.x / vec_norm, vec.y / vec_norm, vec.z / vec_norm);
 }
 
-__host__ __device__ inline float3 operator+(const float3 &a, const float3 &b)
+__host__ __device__ __forceinline__ float3 operator+(const float3 &a, const float3 &b)
 {
     return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
 }
 
-__host__ __device__ inline int3 operator+(const int3 &a, const int3 &b)
+__host__ __device__ __forceinline__ int3 operator+(const int3 &a, const int3 &b)
 {
     return make_int3(a.x + b.x, a.y + b.y, a.z + b.z);
 }
 
-__host__ __device__ inline float3 operator-(const float3 &a, const float3 &b)
+__host__ __device__ __forceinline__ float3 operator-(const float3 &a, const float3 &b)
 {
     return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-__host__ __device__ inline float3 operator*(const float3 &a, float b)
+__host__ __device__ __forceinline__ float3 operator*(const float3 &a, float b)
 {
     return make_float3(a.x * b, a.y * b, a.z * b);
 }
 
-__host__ __device__ inline float3 operator*(float b, const float3 &a)
+__host__ __device__ __forceinline__ float3 operator*(float b, const float3 &a)
 {
     return make_float3(a.x * b, a.y * b, a.z * b);
 }
 
-__host__ __device__ float3 &operator*=(float3 &a, float b)
+__host__ __device__ __forceinline__ float3 &operator*=(float3 &a, float b)
 {
     a.x *= b;
     a.y *= b;
@@ -68,44 +68,44 @@ __host__ __device__ float3 &operator*=(float3 &a, float b)
     return a;
 }
 
-__host__ __device__ inline float dot(const float3 &a, const float3 &b)
+__host__ __device__ __forceinline__ float dot(const float3 &a, const float3 &b)
 {
     float dot = a.x * b.x + a.y * b.y + a.z * b.z;
     return dot;
 }
 
-__host__ __device__ inline float3 cross(const float3 &a, const float3 &b)
+__host__ __device__ __forceinline__ float3 cross(const float3 &a, const float3 &b)
 {
     return make_float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 }
 
-__host__ __device__ inline float max_coeff(const float3 &a)
+__host__ __device__ __forceinline__ float max_coeff(const float3 &a)
 {
     return fmaxf(fmaxf(a.x, a.y), a.z);
 }
 
-__host__ __device__ inline float max_coeff(const float3 a, int &idx)
+__host__ __device__ __forceinline__ float max_coeff(const float3 a, int &idx)
 {
     idx = (a.x > fmaxf(a.y, a.z)) * 0 + (a.y > fmaxf(a.x, a.z)) * 1 + (a.z > fmaxf(a.x, a.y)) * 2;
     return *((float *)(&a) + idx);
 }
 
-__host__ __device__ inline float3 operator/(const float3 &a, float b)
+__host__ __device__ __forceinline__ float3 operator/(const float3 &a, float b)
 {
     return make_float3(a.x / b, a.y / b, a.z / b);
 }
 
-__host__ __device__ inline float distance(const float3 &a, const float3 &b)
+__host__ __device__ __forceinline__ float distance(const float3 &a, const float3 &b)
 {
     return norm(b - a);
 }
 
-__host__ __device__ inline int sign(float n)
+__host__ __device__ __forceinline__ int sign(float n)
 {
     return (n > 0) - (n < 0);
 }
 
-__host__ __device__ inline float signf(float value)
+__host__ __device__ __forceinline__ float signf(float value)
 {
     return (value > 0) - (value < 0);
 }
@@ -117,11 +117,11 @@ __host__ __device__ inline float signf(float value)
 class float2x2
 {
 public:
-    inline __device__ __host__ float2x2()
+    __forceinline__ __device__ __host__ float2x2()
     {
     }
 
-    inline __device__ __host__ float2x2(const float values[4])
+    __forceinline__ __device__ __host__ float2x2(const float values[4])
     {
         m11 = values[0];
         m12 = values[1];
@@ -129,7 +129,7 @@ public:
         m22 = values[3];
     }
 
-    inline __device__ __host__ float2x2(const float2x2 &other)
+    __forceinline__ __device__ __host__ float2x2(const float2x2 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -137,7 +137,7 @@ public:
         m22 = other.m22;
     }
 
-    inline __device__ __host__ void set_zero()
+    __forceinline__ __device__ __host__ void set_zero()
     {
         m11 = 0.0f;
         m12 = 0.0f;
@@ -145,7 +145,7 @@ public:
         m22 = 0.0f;
     }
 
-    static inline __device__ __host__ float2x2 get_identity()
+    static __forceinline__ __device__ __host__ float2x2 get_identity()
     {
         float2x2 res;
         res.set_zero();
@@ -153,7 +153,7 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float2x2 &operator=(const float2x2 &other)
+    __forceinline__ __device__ __host__ float2x2 &operator=(const float2x2 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -162,7 +162,7 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float2x2 get_inverse()
+    __forceinline__ __device__ __host__ float2x2 get_inverse()
     {
         float2x2 res;
         res.m11 = m22;
@@ -173,18 +173,18 @@ public:
         return res * (1.0f / det());
     }
 
-    inline __device__ __host__ float det()
+    __forceinline__ __device__ __host__ float det()
     {
         return m11 * m22 - m21 * m12;
     }
 
-    inline __device__ __host__ float2 operator*(const float2 &v) const
+    __forceinline__ __device__ __host__ float2 operator*(const float2 &v) const
     {
         return make_float2(m11 * v.x + m12 * v.y, m21 * v.x + m22 * v.y);
     }
 
     //! matrix scalar multiplication
-    inline __device__ __host__ float2x2 operator*(const float t) const
+    __forceinline__ __device__ __host__ float2x2 operator*(const float t) const
     {
         float2x2 res;
         res.m11 = m11 * t;
@@ -195,7 +195,7 @@ public:
     }
 
     //! matrix matrix multiplication
-    inline __device__ __host__ float2x2 operator*(const float2x2 &other) const
+    __forceinline__ __device__ __host__ float2x2 operator*(const float2x2 &other) const
     {
         float2x2 res;
         res.m11 = m11 * other.m11 + m12 * other.m21;
@@ -206,7 +206,7 @@ public:
     }
 
     //! matrix matrix addition
-    inline __device__ __host__ float2x2 operator+(const float2x2 &other) const
+    __forceinline__ __device__ __host__ float2x2 operator+(const float2x2 &other) const
     {
         float2x2 res;
         res.m11 = m11 + other.m11;
@@ -216,21 +216,21 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float &operator()(int i, int j)
+    __forceinline__ __device__ __host__ float &operator()(int i, int j)
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float operator()(int i, int j) const
+    __forceinline__ __device__ __host__ float operator()(int i, int j) const
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
@@ -256,11 +256,11 @@ public:
 class float2x3
 {
 public:
-    inline __device__ __host__ float2x3()
+    __forceinline__ __device__ __host__ float2x3()
     {
     }
 
-    inline __device__ __host__ float2x3(const float values[6])
+    __forceinline__ __device__ __host__ float2x3(const float values[6])
     {
         m11 = values[0];
         m12 = values[1];
@@ -270,7 +270,7 @@ public:
         m23 = values[5];
     }
 
-    inline __device__ __host__ float2x3(const float2x3 &other)
+    __forceinline__ __device__ __host__ float2x3(const float2x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -280,7 +280,7 @@ public:
         m23 = other.m23;
     }
 
-    inline __device__ __host__ float2x3 &operator=(const float2x3 &other)
+    __forceinline__ __device__ __host__ float2x3 &operator=(const float2x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -291,13 +291,13 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float2 operator*(const float3 &v) const
+    __forceinline__ __device__ __host__ float2 operator*(const float3 &v) const
     {
         return make_float2(m11 * v.x + m12 * v.y + m13 * v.z, m21 * v.x + m22 * v.y + m23 * v.z);
     }
 
     //! matrix scalar multiplication
-    inline __device__ __host__ float2x3 operator*(const float t) const
+    __forceinline__ __device__ __host__ float2x3 operator*(const float t) const
     {
         float2x3 res;
         res.m11 = m11 * t;
@@ -310,7 +310,7 @@ public:
     }
 
     //! matrix scalar division
-    inline __device__ __host__ float2x3 operator/(const float t) const
+    __forceinline__ __device__ __host__ float2x3 operator/(const float t) const
     {
         float2x3 res;
         res.m11 = m11 / t;
@@ -322,21 +322,21 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float &operator()(int i, int j)
+    __forceinline__ __device__ __host__ float &operator()(int i, int j)
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float operator()(int i, int j) const
+    __forceinline__ __device__ __host__ float operator()(int i, int j) const
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
@@ -364,11 +364,11 @@ public:
 class float3x2
 {
 public:
-    inline __device__ __host__ float3x2()
+    __forceinline__ __device__ __host__ float3x2()
     {
     }
 
-    inline __device__ __host__ float3x2(const float values[6])
+    __forceinline__ __device__ __host__ float3x2(const float values[6])
     {
         m11 = values[0];
         m12 = values[1];
@@ -378,7 +378,7 @@ public:
         m32 = values[5];
     }
 
-    inline __device__ __host__ float3x2 &operator=(const float3x2 &other)
+    __forceinline__ __device__ __host__ float3x2 &operator=(const float3x2 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -389,12 +389,12 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float3 operator*(const float2 &v) const
+    __forceinline__ __device__ __host__ float3 operator*(const float2 &v) const
     {
         return make_float3(m11 * v.x + m12 * v.y, m21 * v.x + m22 * v.y, m31 * v.x + m32 * v.y);
     }
 
-    inline __device__ __host__ float3x2 operator*(const float t) const
+    __forceinline__ __device__ __host__ float3x2 operator*(const float t) const
     {
         float3x2 res;
         res.m11 = m11 * t;
@@ -406,17 +406,17 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float &operator()(int i, int j)
+    __forceinline__ __device__ __host__ float &operator()(int i, int j)
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float operator()(int i, int j) const
+    __forceinline__ __device__ __host__ float operator()(int i, int j) const
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float2x3 get_transpose()
+    __forceinline__ __device__ __host__ float2x3 get_transpose()
     {
         float2x3 res;
         res.m11 = m11;
@@ -428,11 +428,11 @@ public:
         return res;
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
@@ -453,7 +453,7 @@ public:
     };
 };
 
-inline __device__ __host__ float2x2 mat_mul(const float2x3 &m0, const float3x2 &m1)
+__forceinline__ __device__ __host__ float2x2 mat_mul(const float2x3 &m0, const float3x2 &m1)
 {
     float2x2 res;
     res.m11 = m0.m11 * m1.m11 + m0.m12 * m1.m21 + m0.m13 * m1.m31;
@@ -466,10 +466,10 @@ inline __device__ __host__ float2x2 mat_mul(const float2x3 &m0, const float3x2 &
 class float3x3
 {
 public:
-    inline __device__ __host__ float3x3()
+    __forceinline__ __device__ __host__ float3x3()
     {
     }
-    inline __device__ __host__ float3x3(const float values[9])
+    __forceinline__ __device__ __host__ float3x3(const float values[9])
     {
         m11 = values[0];
         m12 = values[1];
@@ -482,14 +482,15 @@ public:
         m33 = values[8];
     }
 
-    inline __device__ __host__ float3x3(const float3 &row1, const float3 &row2, const float3 &row3)
+    __forceinline__ __device__ __host__ float3x3(const float3 &row1, const float3 &row2,
+                                                 const float3 &row3)
     {
         set_row(0, row1);
         set_row(1, row2);
         set_row(2, row3);
     }
 
-    inline __device__ __host__ float3x3(const float3x3 &other)
+    __forceinline__ __device__ __host__ float3x3(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -502,7 +503,7 @@ public:
         m33 = other.m33;
     }
 
-    explicit inline __device__ __host__ float3x3(const float2x2 &other)
+    explicit __forceinline__ __device__ __host__ float3x3(const float2x2 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -515,7 +516,7 @@ public:
         m33 = 0.0;
     }
 
-    inline __device__ __host__ float3x3 &operator=(const float3x3 &other)
+    __forceinline__ __device__ __host__ float3x3 &operator=(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -529,30 +530,30 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float &operator()(int i, int j)
+    __forceinline__ __device__ __host__ float &operator()(int i, int j)
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float operator()(int i, int j) const
+    __forceinline__ __device__ __host__ float operator()(int i, int j) const
     {
         return entries2[i][j];
     }
 
-    static inline __device__ __host__ void swap(float &v0, float &v1)
+    static __forceinline__ __device__ __host__ void swap(float &v0, float &v1)
     {
         float tmp = v0;
         v0 = v1;
         v1 = tmp;
     }
 
-    inline __device__ __host__ void transpose()
+    __forceinline__ __device__ __host__ void transpose()
     {
         swap(m12, m21);
         swap(m13, m31);
         swap(m23, m32);
     }
-    inline __device__ __host__ float3x3 get_transpose() const
+    __forceinline__ __device__ __host__ float3x3 get_transpose() const
     {
         float3x3 ret = *this;
         ret.transpose();
@@ -560,13 +561,13 @@ public:
     }
 
     //! inverts the matrix
-    inline __device__ __host__ void invert()
+    __forceinline__ __device__ __host__ void invert()
     {
         *this = get_inverse();
     }
 
     //! computes the inverse of the matrix; the result is returned
-    inline __device__ __host__ float3x3 get_inverse() const
+    __forceinline__ __device__ __host__ float3x3 get_inverse() const
     {
         float3x3 res;
         res.entries[0] = entries[4] * entries[8] - entries[5] * entries[7];
@@ -584,32 +585,32 @@ public:
         return res * nom;
     }
 
-    inline __device__ __host__ void set_zero(float value = 0.0f)
+    __forceinline__ __device__ __host__ void set_zero(float value = 0.0f)
     {
         m11 = m12 = m13 = value;
         m21 = m22 = m23 = value;
         m31 = m32 = m33 = value;
     }
 
-    inline __device__ __host__ float det() const
+    __forceinline__ __device__ __host__ float det() const
     {
         return +m11 * m22 * m33 + m12 * m23 * m31 + m13 * m21 * m32 - m31 * m22 * m13 -
                m32 * m23 * m11 - m33 * m21 * m12;
     }
 
-    inline __device__ __host__ float3 get_row(unsigned int i) const
+    __forceinline__ __device__ __host__ float3 get_row(unsigned int i) const
     {
         return make_float3(entries[3 * i + 0], entries[3 * i + 1], entries[3 * i + 2]);
     }
 
-    inline __device__ __host__ void set_row(unsigned int i, const float3 &r)
+    __forceinline__ __device__ __host__ void set_row(unsigned int i, const float3 &r)
     {
         entries[3 * i + 0] = r.x;
         entries[3 * i + 1] = r.y;
         entries[3 * i + 2] = r.z;
     }
 
-    inline __device__ __host__ void normalize_rows()
+    __forceinline__ __device__ __host__ void normalize_rows()
     {
         // #pragma unroll 3
         for (unsigned int i = 0; i < 3; i++)
@@ -621,7 +622,7 @@ public:
     }
 
     //! computes the product of two matrices (result stored in this)
-    inline __device__ __host__ void mult(const float3x3 &other)
+    __forceinline__ __device__ __host__ void mult(const float3x3 &other)
     {
         float3x3 res;
         res.m11 = m11 * other.m11 + m12 * other.m21 + m13 * other.m31;
@@ -639,7 +640,7 @@ public:
     }
 
     //! computes the sum of two matrices (result stored in this)
-    inline __device__ __host__ void add(const float3x3 &other)
+    __forceinline__ __device__ __host__ void add(const float3x3 &other)
     {
         m11 += other.m11;
         m12 += other.m12;
@@ -653,7 +654,7 @@ public:
     }
 
     //! standard matrix matrix multiplication
-    inline __device__ __host__ float3x3 operator*(const float3x3 &other) const
+    __forceinline__ __device__ __host__ float3x3 operator*(const float3x3 &other) const
     {
         float3x3 res;
         res.m11 = m11 * other.m11 + m12 * other.m21 + m13 * other.m31;
@@ -671,7 +672,7 @@ public:
     }
 
     //! standard matrix matrix multiplication
-    inline __device__ __host__ float3x2 operator*(const float3x2 &other) const
+    __forceinline__ __device__ __host__ float3x2 operator*(const float3x2 &other) const
     {
         float3x2 res;
         res.m11 = m11 * other.m11 + m12 * other.m21 + m13 * other.m31;
@@ -685,13 +686,13 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float3 operator*(const float3 &v) const
+    __forceinline__ __device__ __host__ float3 operator*(const float3 &v) const
     {
         return make_float3(m11 * v.x + m12 * v.y + m13 * v.z, m21 * v.x + m22 * v.y + m23 * v.z,
                            m31 * v.x + m32 * v.y + m33 * v.z);
     }
 
-    inline __device__ __host__ float3x3 operator*(const float t) const
+    __forceinline__ __device__ __host__ float3x3 operator*(const float t) const
     {
         float3x3 res;
         res.m11 = m11 * t;
@@ -706,7 +707,7 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float3x3 operator+(const float3x3 &other) const
+    __forceinline__ __device__ __host__ float3x3 operator+(const float3x3 &other) const
     {
         float3x3 res;
         res.m11 = m11 + other.m11;
@@ -721,7 +722,7 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float3x3 operator-(const float3x3 &other) const
+    __forceinline__ __device__ __host__ float3x3 operator-(const float3x3 &other) const
     {
         float3x3 res;
         res.m11 = m11 - other.m11;
@@ -736,7 +737,7 @@ public:
         return res;
     }
 
-    static inline __device__ __host__ float3x3 get_identity()
+    static __forceinline__ __device__ __host__ float3x3 get_identity()
     {
         float3x3 res;
         res.set_zero();
@@ -744,14 +745,14 @@ public:
         return res;
     }
 
-    static inline __device__ __host__ float3x3 make_zero_mat()
+    static __forceinline__ __device__ __host__ float3x3 make_zero_mat()
     {
         float3x3 res;
         res.set_zero();
         return res;
     }
 
-    static inline __device__ __host__ float3x3 make_diagonal_mat(float diag = 1.0f)
+    static __forceinline__ __device__ __host__ float3x3 make_diagonal_mat(float diag = 1.0f)
     {
         float3x3 res;
         res.m11 = diag;
@@ -766,7 +767,8 @@ public:
         return res;
     }
 
-    static inline __device__ __host__ float3x3 tensor_product(const float3 &v, const float3 &vt)
+    static __forceinline__ __device__ __host__ float3x3 tensor_product(const float3 &v,
+                                                                       const float3 &vt)
     {
         float3x3 res;
         res.m11 = v.x * vt.x;
@@ -781,11 +783,11 @@ public:
         return res;
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
@@ -808,7 +810,7 @@ public:
     };
 };
 
-inline __device__ __host__ float2x3 mat_mul(const float2x3 &m0, const float3x3 &m1)
+__forceinline__ __device__ __host__ float2x3 mat_mul(const float2x3 &m0, const float3x3 &m1)
 {
     float2x3 res;
     res.m11 = m0.m11 * m1.m11 + m0.m12 * m1.m21 + m0.m13 * m1.m31;
@@ -822,7 +824,7 @@ inline __device__ __host__ float2x3 mat_mul(const float2x3 &m0, const float3x3 &
 }
 
 // (1x2) row matrix as float2
-inline __device__ __host__ float3 mat_mul(const float2 &m0, const float2x3 &m1)
+__forceinline__ __device__ __host__ float3 mat_mul(const float2 &m0, const float2x3 &m1)
 {
     float3 res;
     res.x = m0.x * m1.m11 + m0.y * m1.m21;
@@ -835,10 +837,10 @@ inline __device__ __host__ float3 mat_mul(const float2 &m0, const float2x3 &m1)
 class float3x4
 {
 public:
-    inline __device__ __host__ float3x4()
+    __forceinline__ __device__ __host__ float3x4()
     {
     }
-    inline __device__ __host__ float3x4(const float values[12])
+    __forceinline__ __device__ __host__ float3x4(const float values[12])
     {
         m11 = values[0];
         m12 = values[1];
@@ -854,7 +856,7 @@ public:
         m34 = values[11];
     }
 
-    inline __device__ __host__ float3x4(const float3x4 &other)
+    __forceinline__ __device__ __host__ float3x4(const float3x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -870,7 +872,7 @@ public:
         m34 = other.m34;
     }
 
-    inline __device__ __host__ float3x4(const float3x3 &other)
+    __forceinline__ __device__ __host__ float3x4(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -886,7 +888,7 @@ public:
         m34 = 0.0f;
     }
 
-    inline __device__ __host__ float3x4 operator=(const float3x4 &other)
+    __forceinline__ __device__ __host__ float3x4 operator=(const float3x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -903,7 +905,7 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float3x4 &operator=(const float3x3 &other)
+    __forceinline__ __device__ __host__ float3x4 &operator=(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -921,7 +923,7 @@ public:
     }
 
     //! assumes the last line of the matrix implicitly to be (0,0,0,1)
-    inline __device__ __host__ float4 operator*(const float4 &v) const
+    __forceinline__ __device__ __host__ float4 operator*(const float4 &v) const
     {
         return make_float4(m11 * v.x + m12 * v.y + m13 * v.z + m14 * v.w,
                            m21 * v.x + m22 * v.y + m23 * v.z + m24 * v.w,
@@ -929,7 +931,7 @@ public:
     }
 
     //! assumes an implicit 1 in w component of the input vector
-    inline __device__ __host__ float3 operator*(const float3 &v) const
+    __forceinline__ __device__ __host__ float3 operator*(const float3 &v) const
     {
         return make_float3(m11 * v.x + m12 * v.y + m13 * v.z + m14,
                            m21 * v.x + m22 * v.y + m23 * v.z + m24,
@@ -937,7 +939,7 @@ public:
     }
 
     //! matrix scalar multiplication
-    inline __device__ __host__ float3x4 operator*(const float t) const
+    __forceinline__ __device__ __host__ float3x4 operator*(const float t) const
     {
         float3x4 res;
         res.m11 = m11 * t;
@@ -954,14 +956,14 @@ public:
         res.m34 = m34 * t;
         return res;
     }
-    inline __device__ __host__ float3x4 &operator*=(const float t)
+    __forceinline__ __device__ __host__ float3x4 &operator*=(const float t)
     {
         *this = *this * t;
         return *this;
     }
 
     //! matrix scalar division
-    inline __device__ __host__ float3x4 operator/(const float t) const
+    __forceinline__ __device__ __host__ float3x4 operator/(const float t) const
     {
         float3x4 res;
         res.m11 = m11 / t;
@@ -978,14 +980,14 @@ public:
         res.m34 = m34 / t;
         return res;
     }
-    inline __device__ __host__ float3x4 &operator/=(const float t)
+    __forceinline__ __device__ __host__ float3x4 &operator/=(const float t)
     {
         *this = *this / t;
         return *this;
     }
 
     //! assumes the last line of the matrix implicitly to be (0,0,0,1)
-    inline __device__ __host__ float3x4 operator*(const float3x4 &other) const
+    __forceinline__ __device__ __host__ float3x4 operator*(const float3x4 &other) const
     {
         float3x4 res;
         res.m11 = m11 * other.m11 + m12 * other.m21 + m13 * other.m31;
@@ -1013,7 +1015,7 @@ public:
 
     //! assumes the last line of the matrix implicitly to be (0,0,0,1); and a (0,0,0) translation of
     //! other
-    inline __device__ __host__ float3x4 operator*(const float3x3 &other) const
+    __forceinline__ __device__ __host__ float3x4 operator*(const float3x3 &other) const
     {
         float3x4 res;
         res.m11 = m11 * other.m11 + m12 * other.m21 + m13 * other.m31;
@@ -1034,24 +1036,24 @@ public:
         return res;
     }
 
-    inline __device__ __host__ float &operator()(int i, int j)
+    __forceinline__ __device__ __host__ float &operator()(int i, int j)
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float operator()(int i, int j) const
+    __forceinline__ __device__ __host__ float operator()(int i, int j) const
     {
         return entries2[i][j];
     }
 
     //! returns the translation part of the matrix
-    inline __device__ __host__ float3 get_translation()
+    __forceinline__ __device__ __host__ float3 get_translation()
     {
         return make_float3(m14, m24, m34);
     }
 
     //! sets only the translation part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void set_translation(const float3 &t)
+    __forceinline__ __device__ __host__ void set_translation(const float3 &t)
     {
         m14 = t.x;
         m24 = t.y;
@@ -1059,7 +1061,7 @@ public:
     }
 
     //! returns the 3x3 part of the matrix
-    inline __device__ __host__ float3x3 get_float3x3()
+    __forceinline__ __device__ __host__ float3x3 get_float3x3()
     {
         float3x3 ret;
         ret.m11 = m11;
@@ -1075,7 +1077,7 @@ public:
     }
 
     //! sets the 3x3 part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void set_float3x3(const float3x3 &other)
+    __forceinline__ __device__ __host__ void set_float3x3(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1089,13 +1091,13 @@ public:
     }
 
     //! inverts the matrix
-    inline __device__ __host__ void inverse()
+    __forceinline__ __device__ __host__ void inverse()
     {
         *this = get_inverse();
     }
 
     //! computes the inverse of the matrix
-    inline __device__ __host__ float3x4 get_inverse()
+    __forceinline__ __device__ __host__ float3x4 get_inverse()
     {
         float3x3 A = get_float3x3();
         A.invert();
@@ -1118,11 +1120,11 @@ public:
                   << std::endl;
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
@@ -1151,10 +1153,10 @@ public:
 class float4x4
 {
 public:
-    inline __device__ __host__ float4x4()
+    __forceinline__ __device__ __host__ float4x4()
     {
     }
-    inline __device__ __host__ float4x4(const float values[16])
+    __forceinline__ __device__ __host__ float4x4(const float values[16])
     {
         m11 = values[0];
         m12 = values[1];
@@ -1174,7 +1176,7 @@ public:
         m44 = values[15];
     }
 
-    inline __device__ __host__ float4x4(const float4x4 &other)
+    __forceinline__ __device__ __host__ float4x4(const float4x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1195,7 +1197,7 @@ public:
     }
 
     // implicitly assumes last line to (0,0,0,1)
-    inline __device__ __host__ float4x4(const float3x4 &other)
+    __forceinline__ __device__ __host__ float4x4(const float3x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1215,7 +1217,7 @@ public:
         m44 = 1.0f;
     }
 
-    inline __device__ __host__ float4x4(const float3x3 &other)
+    __forceinline__ __device__ __host__ float4x4(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1235,7 +1237,7 @@ public:
         m44 = 1.0f;
     }
 
-    inline __device__ __host__ float4x4 operator=(const float4x4 &other)
+    __forceinline__ __device__ __host__ float4x4 operator=(const float4x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1256,7 +1258,7 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float4x4 operator=(const float3x4 &other)
+    __forceinline__ __device__ __host__ float4x4 operator=(const float3x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1277,7 +1279,7 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ float4x4 &operator=(const float3x3 &other)
+    __forceinline__ __device__ __host__ float4x4 &operator=(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1299,7 +1301,7 @@ public:
     }
 
     //! not tested
-    inline __device__ __host__ float4x4 operator*(const float4x4 &other) const
+    __forceinline__ __device__ __host__ float4x4 operator*(const float4x4 &other) const
     {
         float4x4 res;
         res.m11 = m11 * other.m11 + m12 * other.m21 + m13 * other.m31 + m14 * other.m41;
@@ -1326,7 +1328,7 @@ public:
     }
 
     // untested
-    inline __device__ __host__ float4 operator*(const float4 &v) const
+    __forceinline__ __device__ __host__ float4 operator*(const float4 &v) const
     {
         return make_float4(m11 * v.x + m12 * v.y + m13 * v.z + m14 * v.w,
                            m21 * v.x + m22 * v.y + m23 * v.z + m24 * v.w,
@@ -1336,31 +1338,31 @@ public:
 
     // untested
     // implicitly assumes w to be 1
-    inline __device__ __host__ float3 operator*(const float3 &v) const
+    __forceinline__ __device__ __host__ float3 operator*(const float3 &v) const
     {
         return make_float3(m11 * v.x + m12 * v.y + m13 * v.z + m14 * 1.0f,
                            m21 * v.x + m22 * v.y + m23 * v.z + m24 * 1.0f,
                            m31 * v.x + m32 * v.y + m33 * v.z + m34 * 1.0f);
     }
 
-    inline __device__ __host__ float &operator()(int i, int j)
+    __forceinline__ __device__ __host__ float &operator()(int i, int j)
     {
         return entries2[i][j];
     }
 
-    inline __device__ __host__ float operator()(int i, int j) const
+    __forceinline__ __device__ __host__ float operator()(int i, int j) const
     {
         return entries2[i][j];
     }
 
-    static inline __device__ __host__ void swap(float &v0, float &v1)
+    static __forceinline__ __device__ __host__ void swap(float &v0, float &v1)
     {
         float tmp = v0;
         v0 = v1;
         v1 = tmp;
     }
 
-    inline __device__ __host__ void transpose()
+    __forceinline__ __device__ __host__ void transpose()
     {
         swap(m12, m21);
         swap(m13, m31);
@@ -1369,20 +1371,20 @@ public:
         swap(m42, m24);
         swap(m43, m34);
     }
-    inline __device__ __host__ float4x4 get_transpose() const
+    __forceinline__ __device__ __host__ float4x4 get_transpose() const
     {
         float4x4 ret = *this;
         ret.transpose();
         return ret;
     }
 
-    inline __device__ __host__ void invert()
+    __forceinline__ __device__ __host__ void invert()
     {
         *this = get_inverse();
     }
 
     //! return the inverse matrix; but does not change the current matrix
-    inline __device__ __host__ float4x4 get_inverse() const
+    __forceinline__ __device__ __host__ float4x4 get_inverse() const
     {
         float inv[16];
 
@@ -1464,7 +1466,7 @@ public:
     }
 
     //! returns the 3x3 part of the matrix
-    inline __device__ __host__ float3x3 get_float3x3()
+    __forceinline__ __device__ __host__ float3x3 get_float3x3()
     {
         float3x3 ret;
         ret.m11 = m11;
@@ -1480,7 +1482,7 @@ public:
     }
 
     //! sets the 3x3 part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void set_float3x3(const float3x3 &other)
+    __forceinline__ __device__ __host__ void set_float3x3(const float3x3 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1494,7 +1496,7 @@ public:
     }
 
     //! sets the 4x4 part of the matrix to identity
-    inline __device__ __host__ void set_identity()
+    __forceinline__ __device__ __host__ void set_identity()
     {
         m11 = 1.0f;
         m12 = 0.0f;
@@ -1515,7 +1517,7 @@ public:
     }
 
     //! sets the 4x4 part of the matrix to identity
-    inline __device__ __host__ void set_value(float v)
+    __forceinline__ __device__ __host__ void set_value(float v)
     {
         m11 = v;
         m12 = v;
@@ -1536,7 +1538,7 @@ public:
     }
 
     //! returns the 3x4 part of the matrix
-    inline __device__ __host__ float3x4 get_float3x4()
+    __forceinline__ __device__ __host__ float3x4 get_float3x4()
     {
         float3x4 ret;
         ret.m11 = m11;
@@ -1555,7 +1557,7 @@ public:
     }
 
     //! sets the 3x4 part of the matrix (other values remain unchanged)
-    inline __device__ __host__ void set_float3x4(const float3x4 &other)
+    __forceinline__ __device__ __host__ void set_float3x4(const float3x4 &other)
     {
         m11 = other.m11;
         m12 = other.m12;
@@ -1571,11 +1573,11 @@ public:
         m34 = other.m34;
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
@@ -1615,30 +1617,30 @@ public:
     //////////////////////////////
     // Initialization
     //////////////////////////////
-    inline __device__ __host__ matNxM()
+    __forceinline__ __device__ __host__ matNxM()
     {
     }
 
-    inline __device__ __host__ matNxM(float *values)
-    {
-        __CONDITIONAL_UNROLL__
-        for (unsigned int i = 0; i < N * M; i++)
-            entries[i] = values[i];
-    }
-
-    inline __device__ __host__ matNxM(const float *values)
+    __forceinline__ __device__ __host__ matNxM(float *values)
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
             entries[i] = values[i];
     }
 
-    inline __device__ __host__ matNxM(const matNxM &other)
+    __forceinline__ __device__ __host__ matNxM(const float *values)
+    {
+        __CONDITIONAL_UNROLL__
+        for (unsigned int i = 0; i < N * M; i++)
+            entries[i] = values[i];
+    }
+
+    __forceinline__ __device__ __host__ matNxM(const matNxM &other)
     {
         (*this) = other;
     }
 
-    inline __device__ __host__ matNxM<N, M> &operator=(const matNxM<N, M> &other)
+    __forceinline__ __device__ __host__ matNxM<N, M> &operator=(const matNxM<N, M> &other)
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
@@ -1646,14 +1648,14 @@ public:
         return *this;
     }
 
-    inline __device__ __host__ void set_zero()
+    __forceinline__ __device__ __host__ void set_zero()
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
             entries[i] = 0.0f;
     }
 
-    inline __device__ __host__ void set_identity()
+    __forceinline__ __device__ __host__ void set_identity()
     {
         set_zero();
         __CONDITIONAL_UNROLL__
@@ -1661,7 +1663,7 @@ public:
             entries2D[i][i] = 1.0f;
     }
 
-    static inline __device__ __host__ matNxM<N, M> get_identity()
+    static __forceinline__ __device__ __host__ matNxM<N, M> get_identity()
     {
         matNxM<N, M> R;
         R.set_identity();
@@ -1673,25 +1675,26 @@ public:
     //////////////////////////////
 
     // declare generic constructors for compile time checking of matrix size
-    template <class B> explicit inline __device__ __host__ matNxM(const B &other);
+    template <class B> explicit __forceinline__ __device__ __host__ matNxM(const B &other);
 
-    template <class B> explicit inline __device__ __host__ matNxM(const B &other0, const B &other1);
+    template <class B>
+    explicit __forceinline__ __device__ __host__ matNxM(const B &other0, const B &other1);
 
     // declare generic casts for compile time checking of matrix size
-    inline __device__ __host__ operator float();
-    inline __device__ __host__ operator float2();
-    inline __device__ __host__ operator float3();
-    inline __device__ __host__ operator float4();
+    __forceinline__ __device__ __host__ operator float();
+    __forceinline__ __device__ __host__ operator float2();
+    __forceinline__ __device__ __host__ operator float3();
+    __forceinline__ __device__ __host__ operator float4();
 
-    inline __device__ __host__ operator float2x2();
-    inline __device__ __host__ operator float3x3();
-    inline __device__ __host__ operator float4x4();
+    __forceinline__ __device__ __host__ operator float2x2();
+    __forceinline__ __device__ __host__ operator float3x3();
+    __forceinline__ __device__ __host__ operator float4x4();
 
     //////////////////////////////
     // Matrix - Matrix Multiplication
     //////////////////////////////
     template <unsigned int N_other, unsigned int M_other>
-    inline __device__ __host__ matNxM<N, M_other> operator*(
+    __forceinline__ __device__ __host__ matNxM<N, M_other> operator*(
         const matNxM<N_other, M_other> &other) const
     {
         cudaAssert(M == N_other);
@@ -1721,13 +1724,13 @@ public:
     // Matrix - Inversion
     //////////////////////////////
 
-    inline __device__ __host__ float det() const;
-    inline __device__ __host__ matNxM<N, M> get_inverse() const;
+    __forceinline__ __device__ __host__ float det() const;
+    __forceinline__ __device__ __host__ matNxM<N, M> get_inverse() const;
 
     //////////////////////////////
     // Matrix - Transpose
     //////////////////////////////
-    inline __device__ __host__ matNxM<M, N> get_transpose() const
+    __forceinline__ __device__ __host__ matNxM<M, N> get_transpose() const
     {
         matNxM<M, N> res;
 
@@ -1744,7 +1747,7 @@ public:
         return res;
     }
 
-    inline __device__ void print_cuda() const
+    __forceinline__ __device__ void print_cuda() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1758,7 +1761,7 @@ public:
         }
     }
 
-    inline __device__ bool check_minf() const
+    __forceinline__ __device__ bool check_minf() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1774,7 +1777,7 @@ public:
         return false;
     }
 
-    inline __device__ bool check_inf() const
+    __forceinline__ __device__ bool check_inf() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1790,7 +1793,7 @@ public:
         return false;
     }
 
-    inline __device__ bool check_qnan() const
+    __forceinline__ __device__ bool check_qnan() const
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
@@ -1809,14 +1812,14 @@ public:
     //////////////////////////////
     // Matrix - Matrix Addition
     //////////////////////////////
-    inline __device__ __host__ matNxM<N, M> operator+(const matNxM<N, M> &other) const
+    __forceinline__ __device__ __host__ matNxM<N, M> operator+(const matNxM<N, M> &other) const
     {
         matNxM<N, M> res = (*this);
         res += other;
         return res;
     }
 
-    inline __device__ __host__ matNxM<N, M> &operator+=(const matNxM<N, M> &other)
+    __forceinline__ __device__ __host__ matNxM<N, M> &operator+=(const matNxM<N, M> &other)
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
@@ -1827,7 +1830,7 @@ public:
     //////////////////////////////
     // Matrix - Negation
     //////////////////////////////
-    inline __device__ __host__ matNxM<N, M> operator-() const
+    __forceinline__ __device__ __host__ matNxM<N, M> operator-() const
     {
         matNxM<N, M> res = (*this) * (-1.0f);
         return res;
@@ -1836,14 +1839,14 @@ public:
     //////////////////////////////
     // Matrix - Matrix Subtraction
     //////////////////////////////
-    inline __device__ __host__ matNxM<N, M> operator-(const matNxM<N, M> &other) const
+    __forceinline__ __device__ __host__ matNxM<N, M> operator-(const matNxM<N, M> &other) const
     {
         matNxM<N, M> res = (*this);
         res -= other;
         return res;
     }
 
-    inline __device__ __host__ matNxM<N, M> &operator-=(const matNxM<N, M> &other)
+    __forceinline__ __device__ __host__ matNxM<N, M> &operator-=(const matNxM<N, M> &other)
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
@@ -1854,14 +1857,14 @@ public:
     //////////////////////////////
     // Matrix - Scalar Multiplication
     //////////////////////////////
-    inline __device__ __host__ matNxM<N, M> operator*(const float t) const
+    __forceinline__ __device__ __host__ matNxM<N, M> operator*(const float t) const
     {
         matNxM<N, M> res = (*this);
         res *= t;
         return res;
     }
 
-    inline __device__ __host__ matNxM<N, M> &operator*=(const float t)
+    __forceinline__ __device__ __host__ matNxM<N, M> &operator*=(const float t)
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
@@ -1872,14 +1875,14 @@ public:
     //////////////////////////////
     // Matrix - Scalar Division
     //////////////////////////////
-    inline __device__ __host__ matNxM<N, M> operator/(const float t) const
+    __forceinline__ __device__ __host__ matNxM<N, M> operator/(const float t) const
     {
         matNxM<N, M> res = (*this);
         res /= t;
         return res;
     }
 
-    inline __device__ __host__ matNxM<N, M> &operator/=(const float t)
+    __forceinline__ __device__ __host__ matNxM<N, M> &operator/=(const float t)
     {
         __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N * M; i++)
@@ -1890,43 +1893,43 @@ public:
     //////////////////////////
     // Element Access
     //////////////////////////
-    inline __device__ __host__ unsigned int n_rows()
+    __forceinline__ __device__ __host__ unsigned int n_rows()
     {
         return N;
     }
 
-    inline __device__ __host__ unsigned int n_cols()
+    __forceinline__ __device__ __host__ unsigned int n_cols()
     {
         return M;
     }
 
-    inline __device__ __host__ float &operator()(unsigned int i, unsigned int j)
+    __forceinline__ __device__ __host__ float &operator()(unsigned int i, unsigned int j)
     {
         cudaAssert(i < N && j < M);
         return entries2D[i][j];
     }
 
-    inline __device__ __host__ float operator()(unsigned int i, unsigned int j) const
+    __forceinline__ __device__ __host__ float operator()(unsigned int i, unsigned int j) const
     {
         cudaAssert(i < N && j < M);
         return entries2D[i][j];
     }
 
-    inline __device__ __host__ float &operator()(unsigned int i)
+    __forceinline__ __device__ __host__ float &operator()(unsigned int i)
     {
         cudaAssert(i < N * M);
         return entries[i];
     }
 
-    inline __device__ __host__ float operator()(unsigned int i) const
+    __forceinline__ __device__ __host__ float operator()(unsigned int i) const
     {
         cudaAssert(i < N * M);
         return entries[i];
     }
 
     template <unsigned int N_other, unsigned int M_other>
-    inline __device__ __host__ void get_block(unsigned int x_start, unsigned int y_start,
-                                              matNxM<N_other, M_other> &res) const
+    __forceinline__ __device__ __host__ void get_block(unsigned int x_start, unsigned int y_start,
+                                                       matNxM<N_other, M_other> &res) const
     {
         cudaAssert(x_start + N_other <= N && y_start + M_other <= M);
 
@@ -1942,8 +1945,8 @@ public:
     }
 
     template <unsigned int N_other, unsigned int M_other>
-    inline __device__ __host__ void setBlock(matNxM<N_other, M_other> &input, unsigned int x_start,
-                                             unsigned int y_start)
+    __forceinline__ __device__ __host__ void setBlock(matNxM<N_other, M_other> &input,
+                                                      unsigned int x_start, unsigned int y_start)
     {
         cudaAssert(x_start + N_other <= N && y_start + M_other <= M);
 
@@ -1958,18 +1961,18 @@ public:
         }
     }
 
-    inline __device__ __host__ const float *ptr() const
+    __forceinline__ __device__ __host__ const float *ptr() const
     {
         return entries;
     }
-    inline __device__ __host__ float *ptr()
+    __forceinline__ __device__ __host__ float *ptr()
     {
         return entries;
     }
 
     // Operators
 
-    inline __device__ __host__ float norm_1d_squared() const
+    __forceinline__ __device__ __host__ float norm_1d_squared() const
     {
         cudaAssert(M == 1 || N == 1);
 
@@ -1980,7 +1983,7 @@ public:
         return sum;
     }
 
-    inline __device__ __host__ float norm_1d() const
+    __forceinline__ __device__ __host__ float norm_1d() const
     {
         return sqrt(norm_1d_squared());
     }
@@ -1996,7 +1999,7 @@ private:
 // Scalar - Matrix Multiplication
 //////////////////////////////
 template <unsigned int N, unsigned int M>
-inline __device__ __host__ matNxM<N, M> operator*(const float t, const matNxM<N, M> &mat)
+__forceinline__ __device__ __host__ matNxM<N, M> operator*(const float t, const matNxM<N, M> &mat)
 {
     matNxM<N, M> res = mat;
     res *= t;
@@ -2007,7 +2010,7 @@ inline __device__ __host__ matNxM<N, M> operator*(const float t, const matNxM<N,
 // Matrix Inversion
 //////////////////////////////
 
-template <> inline __device__ __host__ float matNxM<3, 3>::det() const
+template <> __forceinline__ __device__ __host__ float matNxM<3, 3>::det() const
 {
     const float &m11 = entries2D[0][0];
     const float &m12 = entries2D[0][1];
@@ -2025,7 +2028,7 @@ template <> inline __device__ __host__ float matNxM<3, 3>::det() const
            m33 * m21 * m12;
 }
 
-template <> inline __device__ __host__ matNxM<3, 3> matNxM<3, 3>::get_inverse() const
+template <> __forceinline__ __device__ __host__ matNxM<3, 3> matNxM<3, 3>::get_inverse() const
 {
     matNxM<3, 3> res;
     res.entries[0] = entries[4] * entries[8] - entries[5] * entries[7];
@@ -2042,12 +2045,12 @@ template <> inline __device__ __host__ matNxM<3, 3> matNxM<3, 3>::get_inverse() 
     return res * (1.0f / det());
 }
 
-template <> inline __device__ __host__ float matNxM<2, 2>::det() const
+template <> __forceinline__ __device__ __host__ float matNxM<2, 2>::det() const
 {
     return (*this)(0, 0) * (*this)(1, 1) - (*this)(1, 0) * (*this)(0, 1);
 }
 
-template <> inline __device__ __host__ matNxM<2, 2> matNxM<2, 2>::get_inverse() const
+template <> __forceinline__ __device__ __host__ matNxM<2, 2> matNxM<2, 2>::get_inverse() const
 {
     matNxM<2, 2> res;
     res(0, 0) = (*this)(1, 1);
@@ -2063,27 +2066,33 @@ template <> inline __device__ __host__ matNxM<2, 2> matNxM<2, 2>::get_inverse() 
 //////////////////////////////
 
 // To Matrix from floatNxN
-template <> template <> inline __device__ __host__ matNxM<1, 1>::matNxM(const float &other)
+template <> template <> __forceinline__ __device__ __host__ matNxM<1, 1>::matNxM(const float &other)
 {
     entries[0] = other;
 }
 
 // To Matrix from floatNxN
-template <> template <> inline __device__ __host__ matNxM<2, 2>::matNxM(const float2x2 &other)
+template <>
+template <>
+__forceinline__ __device__ __host__ matNxM<2, 2>::matNxM(const float2x2 &other)
 {
     __CONDITIONAL_UNROLL__
     for (unsigned int i = 0; i < 4; i++)
         entries[i] = other.entries[i];
 }
 
-template <> template <> inline __device__ __host__ matNxM<3, 3>::matNxM(const float3x3 &other)
+template <>
+template <>
+__forceinline__ __device__ __host__ matNxM<3, 3>::matNxM(const float3x3 &other)
 {
     __CONDITIONAL_UNROLL__
     for (unsigned int i = 0; i < 9; i++)
         entries[i] = other.entries[i];
 }
 
-template <> template <> inline __device__ __host__ matNxM<4, 4>::matNxM(const float4x4 &other)
+template <>
+template <>
+__forceinline__ __device__ __host__ matNxM<4, 4>::matNxM(const float4x4 &other)
 {
     __CONDITIONAL_UNROLL__
     for (unsigned int i = 0; i < 16; i++)
@@ -2092,7 +2101,7 @@ template <> template <> inline __device__ __host__ matNxM<4, 4>::matNxM(const fl
 
 template <>
 template <>
-inline __device__ __host__ matNxM<3, 2>::matNxM(const float3 &col0, const float3 &col1)
+__forceinline__ __device__ __host__ matNxM<3, 2>::matNxM(const float3 &col0, const float3 &col1)
 {
     entries2D[0][0] = col0.x;
     entries2D[0][1] = col1.x;
@@ -2103,7 +2112,7 @@ inline __device__ __host__ matNxM<3, 2>::matNxM(const float3 &col0, const float3
 }
 
 // To floatNxM from Matrix
-template <> inline __device__ __host__ matNxM<4, 4>::operator float4x4()
+template <> __forceinline__ __device__ __host__ matNxM<4, 4>::operator float4x4()
 {
     float4x4 res;
     __CONDITIONAL_UNROLL__
@@ -2112,7 +2121,7 @@ template <> inline __device__ __host__ matNxM<4, 4>::operator float4x4()
     return res;
 }
 
-template <> inline __device__ __host__ matNxM<3, 3>::operator float3x3()
+template <> __forceinline__ __device__ __host__ matNxM<3, 3>::operator float3x3()
 {
     float3x3 res;
     __CONDITIONAL_UNROLL__
@@ -2121,7 +2130,7 @@ template <> inline __device__ __host__ matNxM<3, 3>::operator float3x3()
     return res;
 }
 
-template <> inline __device__ __host__ matNxM<2, 2>::operator float2x2()
+template <> __forceinline__ __device__ __host__ matNxM<2, 2>::operator float2x2()
 {
     float2x2 res;
     __CONDITIONAL_UNROLL__
@@ -2131,20 +2140,26 @@ template <> inline __device__ __host__ matNxM<2, 2>::operator float2x2()
 }
 
 // To Matrix from floatN
-template <> template <> inline __device__ __host__ matNxM<2, 1>::matNxM(const float2 &other)
+template <>
+template <>
+__forceinline__ __device__ __host__ matNxM<2, 1>::matNxM(const float2 &other)
 {
     entries[0] = other.x;
     entries[1] = other.y;
 }
 
-template <> template <> inline __device__ __host__ matNxM<3, 1>::matNxM(const float3 &other)
+template <>
+template <>
+__forceinline__ __device__ __host__ matNxM<3, 1>::matNxM(const float3 &other)
 {
     entries[0] = other.x;
     entries[1] = other.y;
     entries[2] = other.z;
 }
 
-template <> template <> inline __device__ __host__ matNxM<4, 1>::matNxM(const float4 &other)
+template <>
+template <>
+__forceinline__ __device__ __host__ matNxM<4, 1>::matNxM(const float4 &other)
 {
     entries[0] = other.x;
     entries[1] = other.y;
@@ -2153,22 +2168,22 @@ template <> template <> inline __device__ __host__ matNxM<4, 1>::matNxM(const fl
 }
 
 // To floatN from Matrix
-template <> inline __device__ __host__ matNxM<1, 1>::operator float()
+template <> __forceinline__ __device__ __host__ matNxM<1, 1>::operator float()
 {
     return entries[0];
 }
 
-template <> inline __device__ __host__ matNxM<2, 1>::operator float2()
+template <> __forceinline__ __device__ __host__ matNxM<2, 1>::operator float2()
 {
     return make_float2(entries[0], entries[1]);
 }
 
-template <> inline __device__ __host__ matNxM<3, 1>::operator float3()
+template <> __forceinline__ __device__ __host__ matNxM<3, 1>::operator float3()
 {
     return make_float3(entries[0], entries[1], entries[2]);
 }
 
-template <> inline __device__ __host__ matNxM<4, 1>::operator float4()
+template <> __forceinline__ __device__ __host__ matNxM<4, 1>::operator float4()
 {
     return make_float4(entries[0], entries[1], entries[2], entries[3]);
 }

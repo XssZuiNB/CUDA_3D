@@ -3,6 +3,7 @@
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/point_cloud.hpp"
 #include "geometry/type.hpp"
+#include "movement_detection/movement_detection.hpp"
 #include "util/gpu_check.hpp"
 
 #include <chrono>
@@ -15,7 +16,9 @@
 
 #include <omp.h>
 
+#include <pcl/ModelCoefficients.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/filters/extract_indices.h>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
@@ -25,6 +28,7 @@
 #include <pcl/registration/icp.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/region_growing_rgb.h>
+#include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
@@ -64,7 +68,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 30);
+    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
 
@@ -83,6 +87,8 @@ int main(int argc, char *argv[])
 
     bool if_first_frame = true;
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
+
+    auto detector = gca::movement_detection();
 
     // test
     /*
@@ -201,13 +207,13 @@ int main(int argc, char *argv[])
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 4);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 3);
 
-        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 4);
+        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 8);
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
 
-        pc_downsampling_0->estimate_normals(0.06f);
+        pc_downsampling_0->estimate_normals(0.04f);
         auto end = std::chrono::steady_clock::now();
 
         std::cout << "Total cuda time in microseconds: "
@@ -221,6 +227,9 @@ int main(int argc, char *argv[])
         std::cout << "GPU pc1 after remove noise number: " << pc_remove_noise_0->points_number()
                   << std::endl;
         std::cout << "GPU pc1 Voxel number: " << pc_downsampling_0->points_number() << std::endl;
+
+        detector.update_point_cloud(pc_downsampling_0);
+        detector.moving_objects_detection();
 
         auto points_0 = pc_downsampling_0->download();
         auto normals_0 = pc_downsampling_0->download_normals();
@@ -272,21 +281,78 @@ int main(int argc, char *argv[])
                         */
         }
 
-        pcl::search::Search<pcl::PointXYZRGBA>::Ptr tree =
-            boost::shared_ptr<pcl::search::Search<pcl::PointXYZRGBA>>(
-                new pcl::search::KdTree<pcl::PointXYZRGBA>);
-        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+        /* RANSAC Seg plane
+        /
+        start = std::chrono::steady_clock::now();
+        pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+        pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
 
+        seg.setOptimizeCoefficients(true);
+        seg.setModelType(pcl::SACMODEL_PLANE);
+        seg.setMethodType(pcl::SAC_RANSAC);
+        seg.setMaxIterations(1000);
+        seg.setDistanceThreshold(0.01);
+
+        seg.setInputCloud(cloud_1);
+        seg.segment(*inliers, *coefficients);
+
+        end = std::chrono::steady_clock::now();
+
+        std::cout << "RANSAC seg: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
+
+        if (inliers->indices.size() == 0)
+        {
+            PCL_ERROR("Could not estimate a planar model for the given dataset.");
+            return -1;
+        }
+
+        for (int index : inliers->indices)
+        {
+            cloud_1->points[index].r = 0;
+            cloud_1->points[index].g = 255;
+            cloud_1->points[index].b = 0;
+        }
+        */
+
+        /* clustering using normals */
+        /*
+        pcl::search::Search<pcl::PointXYZRGBA>::Ptr tree =
+            std::shared_ptr<pcl::search::Search<pcl::PointXYZRGBA>>(
+                new pcl::search::KdTree<pcl::PointXYZRGBA>);
+
+        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+        pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> normal_estimator;
+        normal_estimator.setSearchMethod(tree);
+        normal_estimator.setInputCloud(cloud_1);
+        normal_estimator.setKSearch(20);
+        normal_estimator.compute(*normals);
+
+        pcl::RegionGrowing<pcl::PointXYZRGBA, pcl::Normal> reg;
+        reg.setMinClusterSize(50);
+        reg.setMaxClusterSize(1000000);
+        reg.setSearchMethod(tree);
+        reg.setNumberOfNeighbours(30);
+        reg.setInputCloud(cloud_1);
+        // reg.setIndices (indices);
+        reg.setInputNormals(normals);
+        reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
+        reg.setCurvatureThreshold(1.0);
+        */
+        /*
         pcl::RegionGrowingRGB<pcl::PointXYZRGBA> reg;
         reg.setInputCloud(cloud_1);
         reg.setSearchMethod(tree);
-        reg.setDistanceThreshold(0.03);
+        reg.setDistanceThreshold(0.04);
         reg.setPointColorThreshold(5);
-        reg.setRegionColorThreshold(0);
-        reg.setMinClusterSize(10);
+        reg.setMinClusterSize(50);
 
         std::vector<pcl::PointIndices> cluster_indices;
         reg.extract(cluster_indices);
+
+        std::cout << "clusters: " << cluster_indices.size() << std::endl;
 
         start = std::chrono::steady_clock::now();
         for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin();
@@ -302,18 +368,16 @@ int main(int argc, char *argv[])
             cloud_cluster->is_dense = true;
 
             pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
-            icp.setMaximumIterations(0);
+            icp.setMaximumIterations(1);
             icp.setInputSource(cloud_cluster);
             icp.setInputTarget(cloud_0);
             pcl::PointCloud<pcl::PointXYZRGBA> Final;
             icp.align(Final);
 
-            // 3. 计算每个聚类的平均残差
             double avg_residual = icp.getFitnessScore();
             std::cout << "residual: " << avg_residual << std::endl;
 
-            // 4. 标记残差大的聚类
-            if (avg_residual > 0.008)
+            if (avg_residual > 0.002)
             {
                 for (std::vector<int>::const_iterator pit = it->indices.begin();
                      pit != it->indices.end(); ++pit)
@@ -329,7 +393,7 @@ int main(int argc, char *argv[])
         std::cout << "residual: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
-
+        */
         /*
         pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_aligned(
@@ -584,7 +648,7 @@ int main(int argc, char *argv[])
      std::cout << "neighbors: " << neighbor_indicies.size() << std::endl;
         */
 
-        // viewer_0.showCloud(cloud_0);
+        viewer_0.showCloud(cloud_1);
         //   viewer_1.spinOnce();
         std::cout << "__________________________________________________" << std::endl;
     }

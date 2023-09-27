@@ -100,8 +100,8 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
 {
     auto steps = steps_num;
     auto min_filter_r = min_filter_radius;
-    constexpr auto sigma_space = 30.0f;
-    constexpr auto sigma_depth = 80.0f;
+    constexpr auto sigma_space = 40.0f;
+    constexpr auto sigma_depth = 100.0f;
 
     auto depth_data = __ldg(&input[index_y * input_width + index_x]);
 
@@ -112,7 +112,7 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
         return depth_value;
     }
 
-    auto step = static_cast<uint32_t>(depth_value / step_len);
+    auto step = static_cast<uint32_t>((depth_value - threshold_min_in_meter) / step_len);
     if (step > steps)
         step = steps;
 
@@ -122,6 +122,26 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
 
     return __bilateral_filter(input, input_width, input_height, index_x, index_y, depth_data,
                               filter_r, new_sigma_space, new_sigma_depth);
+}
+
+/************************************** Filter out eddges ***************************************/
+/* See: https://github.com/raluca-scona/Joint-VO-SF/blob/master/segmentation_background.cpp     */
+/* line 56 to 69                                                                                */
+__forceinline__ __device__ static float __edges_filter(const uint16_t *depth, uint32_t input_width,
+                                                       uint32_t input_height, int index_x,
+                                                       int index_y)
+{
+    static constexpr float threshold_edge = 0.3f;
+
+    auto depth_value = __ldg(&depth[index_y * input_width + index_x]);
+
+    const float sum_diff_depth =
+        abs(__ldg(&depth[index_y * input_width + (index_x - 1)]) - depth_value) +
+        abs(__ldg(&depth[index_y * input_width + (index_x + 1)]) - depth_value) +
+        abs(__ldg(&depth[(index_y - 1) * input_width + index_x]) - depth_value) +
+        abs(__ldg(&depth[(index_y + 1) * input_width + index_x]) - depth_value);
+
+    return (sum_diff_depth < threshold_edge) * depth_value;
 }
 
 /****************** Create point cloud from rgbd, include invalid point remove ******************/

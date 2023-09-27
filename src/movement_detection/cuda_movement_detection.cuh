@@ -8,10 +8,16 @@
 
 namespace gca
 {
-::cudaError_t cuda_movement_detection(thrust::device_vector<gca::point_t> &result,
-                                      const thrust::device_vector<gca::point_t> &pts_this_frame,
-                                      const thrust::device_vector<gca::point_t> &pts_last_frame,
-                                      const float3 min_bound, const float3 max_bound,
-                                      const float geometry_constraint,
-                                      const float color_constraint);
-}
+::cudaError_t cuda_compute_res_and_mean_res(
+    thrust::device_vector<float> &residuals, float &mean_residual,
+    const thrust::device_vector<gca::point_t> &pts_src_frame,
+    const thrust::device_vector<gca::point_t> &pts_tgt_frame,
+    const thrust::device_vector<gca::index_t> &nn_idxs, const float geometry_constraint,
+    const float geometry_weight, const float photometry_weight);
+
+::cudaError_t cuda_moving_objects_seg(thrust::device_vector<gca::point_t> &output,
+                                      gca::counter_t n_clusters,
+                                      const thrust::device_vector<gca::index_t> &clusters,
+                                      const thrust::device_vector<gca::point_t> &pts_src,
+                                      const thrust::device_vector<float> &residuals);
+} // namespace gca

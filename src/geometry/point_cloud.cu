@@ -160,6 +160,11 @@ const thrust::device_vector<float3> &point_cloud::get_normals()
     return m_normals;
 }
 
+const thrust::device_vector<gca::point_t> &point_cloud::get_points()
+{
+    return m_points;
+}
+
 std::vector<float3> point_cloud::download_normals() const
 {
     std::vector<float3> temp(m_normals.size());
@@ -327,73 +332,7 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
         return std::make_pair(cluster_of_point, 0);
     }
 
-    return std::make_pair(cluster_of_point, n_clusters);
-}
-
-std::shared_ptr<point_cloud> point_cloud::movement_detection(point_cloud &last_frame,
-                                                             const float geometry_constraint,
-                                                             const float color_constraint)
-{
-    auto output = std::make_shared<point_cloud>();
-    if (geometry_constraint <= 0.0 || color_constraint <= 0)
-    {
-        std::cout << YELLOW << "Constraint is less than 0, FALSE returned!" << std::endl;
-        return output;
-    }
-
-    if (!m_has_bound)
-    {
-        if (!compute_min_max_bound())
-        {
-            std::cout << YELLOW
-                      << "Compute bound of this point cloud is not possible, FALSE returned!"
-                      << std::endl;
-            return output;
-        }
-    }
-
-    if (!last_frame.m_has_bound)
-    {
-        if (!(last_frame.compute_min_max_bound()))
-        {
-            std::cout << YELLOW
-                      << "Compute bound of last point cloud is not possible, FALSE result "
-                         "returned!"
-                      << std::endl;
-            return output;
-        }
-    }
-
-    auto padding = 1.5 * geometry_constraint;
-    const auto grid_cells_min_bound =
-        make_float3(min(m_min_bound.x, last_frame.m_min_bound.x) - padding,
-                    min(m_min_bound.y, last_frame.m_min_bound.y) - padding,
-                    min(m_min_bound.z, last_frame.m_min_bound.z) - padding);
-
-    const auto grid_cells_max_bound =
-        make_float3(max(m_max_bound.x, last_frame.m_max_bound.x) + padding,
-                    max(m_max_bound.y, last_frame.m_max_bound.y) + padding,
-                    max(m_max_bound.z, last_frame.m_max_bound.z) + padding);
-
-    if (geometry_constraint * std::numeric_limits<int>::max() <
-        max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
-                grid_cells_max_bound.y - grid_cells_min_bound.y),
-            grid_cells_max_bound.z - grid_cells_min_bound.z))
-    {
-        std::cout << YELLOW << "Geometry_constraint is too small, FALSE returned!" << std::endl;
-        return output;
-    }
-
-    auto err = cuda_movement_detection(output->m_points, m_points, last_frame.m_points,
-                                       grid_cells_min_bound, grid_cells_max_bound,
-                                       geometry_constraint, color_constraint);
-    if (err != ::cudaSuccess)
-    {
-        std::cout << YELLOW << "Movement detection failed, FALSE returned!\n" << std::endl;
-        return output;
-    }
-
-    return output;
+    return std::make_pair(cluster_of_point, n_clusters + 1);
 }
 
 std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth_frame &depth,
@@ -469,7 +408,7 @@ thrust::device_vector<gca::index_t> point_cloud::nn_search(gca::point_cloud &que
                     max(query_pc.m_max_bound.y, reference_pc.m_max_bound.y) + padding,
                     max(query_pc.m_max_bound.z, reference_pc.m_max_bound.z) + padding);
 
-    if (radius * 2 * std::numeric_limits<int>::max() <
+    if (radius * std::numeric_limits<int>::max() <
         max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
                 grid_cells_max_bound.y - grid_cells_min_bound.y),
             grid_cells_max_bound.z - grid_cells_min_bound.z))

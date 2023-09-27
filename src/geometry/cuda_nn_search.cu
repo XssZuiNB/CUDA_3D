@@ -165,10 +165,13 @@ struct nn_search_functor
         float min_distance_square = m_search_radius_square;
         gca::index_t nn_idx_in_R = -1;
 
+#pragma unroll
         for (auto i = -1; i < 2; i++)
         {
+#pragma unroll
             for (auto j = -1; j < 2; j++)
             {
+#pragma unroll
                 for (auto k = -1; k < 2; k++)
                 {
                     auto idx_neighbor_grid_cell =

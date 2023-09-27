@@ -2,6 +2,7 @@
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+#include "util/math.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -73,17 +74,8 @@ struct add_points_functor
     __forceinline__ __device__ gca::point_t operator()(const gca::point_t &first,
                                                        const gca::point_t &second)
     {
-        return gca::point_t{.coordinates{
-                                .x = first.coordinates.x + second.coordinates.x,
-                                .y = first.coordinates.y + second.coordinates.y,
-                                .z = first.coordinates.z + second.coordinates.z,
-                            },
-                            .color{
-                                .r = first.color.r + second.color.r,
-                                .g = first.color.g + second.color.g,
-                                .b = first.color.b + second.color.b,
-                            },
-                            .property = gca::point_property::inactive};
+        return gca::point_t{first.coordinates + second.coordinates, first.color + second.color,
+                            gca::point_property::inactive};
     }
 };
 
@@ -92,17 +84,8 @@ struct compute_points_mean_functor
     __forceinline__ __device__ gca::point_t operator()(const gca::point_t &points_sum,
                                                        const gca::counter_t n)
     {
-        return gca::point_t{.coordinates{
-                                .x = points_sum.coordinates.x / n,
-                                .y = points_sum.coordinates.y / n,
-                                .z = points_sum.coordinates.z / n,
-                            },
-                            .color{
-                                .r = points_sum.color.r / n,
-                                .g = points_sum.color.g / n,
-                                .b = points_sum.color.b / n,
-                            },
-                            .property = gca::point_property::inactive};
+        return gca::point_t{points_sum.coordinates / n, points_sum.color / n,
+                            gca::point_property::inactive};
     }
 };
 

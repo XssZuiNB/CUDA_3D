@@ -240,7 +240,7 @@ struct check_if_queue_empty_functor
     std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
     gca::index_t cluster = 0;
 
-    for (gca::index_t i = 0; i < n_points; i++)
+    for (gca::index_t i = 0; i < n_points; ++i)
     {
         if (visited[i])
         {
@@ -248,6 +248,7 @@ struct check_if_queue_empty_functor
         }
 
         std::vector<gca::index_t> seed_queue;
+        seed_queue.reserve(max_cluster_size);
         gca::index_t sq_idx = 0;
         seed_queue.push_back(i);
 
@@ -260,7 +261,7 @@ struct check_if_queue_empty_functor
             auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[this_p].first;
             auto n_neighbors = pair_neighbors_begin_idx_and_count_host[this_p].second;
 
-            for (gca::index_t j = 0; j < n_neighbors; j++)
+            for (gca::index_t j = 0; j < n_neighbors; ++j)
             {
                 auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
                 if (visited[neighbor])
@@ -270,7 +271,7 @@ struct check_if_queue_empty_functor
                 seed_queue.push_back(neighbor);
             }
 
-            sq_idx++;
+            ++sq_idx;
         }
 
         if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
@@ -279,7 +280,7 @@ struct check_if_queue_empty_functor
             {
                 cluster_of_point[neighbor] = cluster;
             }
-            cluster++;
+            ++cluster;
         }
         else
         {
