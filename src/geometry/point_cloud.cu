@@ -5,7 +5,6 @@
 #include "geometry/cuda_voxel_grid_down_sample.cuh"
 #include "geometry/geometry_util.cuh"
 #include "geometry/point_cloud.hpp"
-#include "movement_detection/cuda_movement_detection.cuh"
 #include "util/console_color.hpp"
 
 #include <memory>
