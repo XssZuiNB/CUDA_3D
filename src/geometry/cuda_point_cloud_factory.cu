@@ -129,11 +129,16 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
 /* line 56 to 69                                                                                */
 __forceinline__ __device__ static float __edges_filter(const uint16_t *depth, uint32_t input_width,
                                                        uint32_t input_height, int index_x,
-                                                       int index_y)
+                                                       int index_y, float depth_scale)
 {
     static constexpr float threshold_edge = 0.3f;
 
     auto depth_value = __ldg(&depth[index_y * input_width + index_x]);
+
+    if (index_x < 1 || index_x > input_width - 2 || index_y < 1 || index_y > input_height - 2)
+    {
+        return depth_value * depth_scale;
+    }
 
     const float sum_diff_depth =
         abs(__ldg(&depth[index_y * input_width + (index_x - 1)]) - depth_value) +
@@ -141,7 +146,7 @@ __forceinline__ __device__ static float __edges_filter(const uint16_t *depth, ui
         abs(__ldg(&depth[(index_y - 1) * input_width + index_x]) - depth_value) +
         abs(__ldg(&depth[(index_y + 1) * input_width + index_x]) - depth_value);
 
-    return (sum_diff_depth < threshold_edge) * depth_value;
+    return (sum_diff_depth * depth_scale < threshold_edge) * depth_value * depth_scale;
 }
 
 /****************** Create point cloud from rgbd, include invalid point remove ******************/
@@ -209,7 +214,9 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
                                             depth_y, threshold_min, threshold_max) *
                 depth_scale;
         else
-            depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
+            // depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
+            depth_value =
+                __edges_filter(depth_frame_data, width, height, depth_x, depth_y, depth_scale);
 
         if (depth_value < threshold_min || depth_value > threshold_max)
         {
@@ -319,7 +326,7 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     if (!depth_intrin_ptr || !color_intrin_ptr || !depth2color_extrin_ptr || !width || !height)
         return ::cudaErrorInvalidValue;
 
-    if (depth_scale - 0.0 < 0.00001)
+    if (depth_scale <= 0.0f)
         return ::cudaErrorInvalidValue;
 
     auto depth_pixel_count = width * height;
@@ -331,9 +338,9 @@ bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
     __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
         thrust::raw_pointer_cast(result.data()), width, height, depth_frame_cuda_ptr,
         color_frame_cuda_ptr, depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter, threshold_max_in_meter,
-        true); // didnt use bilateral filter, later maybe a compare to see if it
-               // is needed
+        depth_scale, threshold_min_in_meter,
+        threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
+                                 // is needed
 
     auto err = cudaDeviceSynchronize();
     if (err != ::cudaSuccess)

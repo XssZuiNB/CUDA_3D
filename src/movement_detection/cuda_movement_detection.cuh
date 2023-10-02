@@ -16,8 +16,9 @@ namespace gca
     const float geometry_weight, const float photometry_weight);
 
 ::cudaError_t cuda_moving_objects_seg(thrust::device_vector<gca::point_t> &output,
-                                      gca::counter_t n_clusters,
+                                      const gca::counter_t n_clusters,
                                       const thrust::device_vector<gca::index_t> &clusters,
                                       const thrust::device_vector<gca::point_t> &pts_src,
-                                      const thrust::device_vector<float> &residuals);
+                                      const thrust::device_vector<float> &residuals,
+                                      const float mean_residual_over_all);
 } // namespace gca

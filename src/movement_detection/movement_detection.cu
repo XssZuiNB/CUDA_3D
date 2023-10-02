@@ -24,8 +24,8 @@ void movement_detection::set_target_point_cloud(std::shared_ptr<gca::point_cloud
 }
 void movement_detection::update_point_cloud(std::shared_ptr<gca::point_cloud> pc_new)
 {
-    m_pc_ptr_tgt = m_pc_ptr_src;
-    m_pc_ptr_src = pc_new;
+    m_pc_ptr_src = m_pc_ptr_tgt;
+    m_pc_ptr_tgt = pc_new;
 }
 
 std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
@@ -59,7 +59,7 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
                  clustering_result_pair_host.first->end(), clusters.begin());
 
     err = cuda_moving_objects_seg(output->m_points, clustering_result_pair_host.second, clusters,
-                                  pts_src, residuals);
+                                  pts_src, residuals, mean_residual_over_all);
 
     return output;
 }

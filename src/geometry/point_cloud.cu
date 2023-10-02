@@ -331,7 +331,7 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
         return std::make_pair(cluster_of_point, 0);
     }
 
-    return std::make_pair(cluster_of_point, n_clusters + 1);
+    return std::make_pair(cluster_of_point, n_clusters);
 }
 
 std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth_frame &depth,

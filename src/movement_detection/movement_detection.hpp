@@ -21,7 +21,7 @@ private:
     std::shared_ptr<gca::point_cloud> m_pc_ptr_tgt;
 
     // parameters
-    static constexpr float m_nn_search_radius = 0.1f;
+    static constexpr float m_nn_search_radius = 0.15f;
     static constexpr float m_geometry_weight = 1.0f;
     static constexpr float m_photometry_weight = 0.15f;
     static constexpr float m_clustering_tolerance = 0.04f;
