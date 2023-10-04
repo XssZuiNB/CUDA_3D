@@ -166,30 +166,31 @@ struct fill_start_keys_functor_2
     {
         return err;
     }
-
-    auto start = std::chrono::steady_clock::now();
-    thrust::device_vector<gca::index_t> keys_(all_neighbors.size(), 0);
-    thrust::device_vector<gca::index_t> keys(all_neighbors.size());
-    thrust::for_each(pair_neighbors_begin_idx_and_count.begin() + 1,
-                     pair_neighbors_begin_idx_and_count.end(), fill_start_keys_functor(keys_));
-
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
-
-    thrust::inclusive_scan(keys_.begin(), keys_.end(), keys.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "normal pre: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
     /*
+        auto start = std::chrono::steady_clock::now();
+        thrust::device_vector<gca::index_t> keys_(all_neighbors.size(), 0);
+        thrust::device_vector<gca::index_t> keys(all_neighbors.size());
+        thrust::for_each(pair_neighbors_begin_idx_and_count.begin() + 1,
+                         pair_neighbors_begin_idx_and_count.end(), fill_start_keys_functor(keys_));
+
+        err = cudaGetLastError();
+        if (err != ::cudaSuccess)
+        {
+            return err;
+        }
+
+        thrust::inclusive_scan(keys_.begin(), keys_.end(), keys.begin());
+        err = cudaGetLastError();
+        if (err != ::cudaSuccess)
+        {
+            return err;
+        }
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "normal pre: "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() <<
+       "us"
+                  << std::endl;
+        */
     auto start = std::chrono::steady_clock::now();
     thrust::counting_iterator<gca::counter_t> counter_iter(0);
     thrust::device_vector<gca::index_t> keys(all_neighbors.size());
@@ -205,7 +206,7 @@ struct fill_start_keys_functor_2
     std::cout << "normal pre2: "
               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
               << std::endl;
-    */
+
     thrust::device_vector<mat9x1> cumulants_sum(n_points);
     auto compute_cumulant_iter =
         thrust::make_transform_iterator(all_neighbors.begin(), compute_cumulant_functor(points));

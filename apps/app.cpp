@@ -208,15 +208,15 @@ int main(int argc, char *argv[])
         gpu_color_0.upload((uint8_t *)color_0, rs_cam_0.get_width(), rs_cam_0.get_height());
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
-        auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4, 3);
+        auto pc_0 = gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4);
 
-        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 8);
+        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 4);
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
 
         pc_downsampling_0->estimate_normals(0.04f);
 
+        /*
         detector.update_point_cloud(pc_downsampling_0);
         auto moving_pc = detector.moving_objects_detection();
         auto end = std::chrono::steady_clock::now();
@@ -249,45 +249,13 @@ int main(int argc, char *argv[])
                 p.g = points_0[i].color.g * 255;
                 p.b = points_0[i].color.b * 255;
                 cloud_1->points[i] = p;
-                /*
-                            pcl::Normal n;
-                            n.normal_x = normals_0[i].x;
-                            n.normal_y = -normals_0[i].y;
-                            n.normal_z = -normals_0[i].z;
-                            normals->points[i] = n;
-                            */
             }
             viewer_0.showCloud(cloud_1);
         }
-
-        /*
-        if (if_first_frame)
-        {
-            cloud_0->points.resize(number_of_points);
-            for (size_t i = 0; i < number_of_points; i++)
-            {
-                PointT p;
-                p.x = points_0[i].coordinates.x;
-                p.y = -points_0[i].coordinates.y;
-                p.z = -points_0[i].coordinates.z;
-                p.r = points_0[i].color.r * 255;
-                p.g = points_0[i].color.g * 255;
-                p.b = points_0[i].color.b * 255;
-                cloud_0->points[i] = p;
-
-                pcl::Normal n;
-                n.normal_x = normals_0[i].x;
-                n.normal_y = -normals_0[i].y;
-                n.normal_z = -normals_0[i].z;
-                normals->points[i] = n;
-            }
-            if_first_frame = false;
-            continue;
-        }
         */
 
-        // normals->points.resize(number_of_points);
-        /*
+        auto points_0 = pc_downsampling_0->download();
+        auto number_of_points = points_0.size();
         cloud_1->points.resize(number_of_points);
         for (size_t i = 0; i < number_of_points; i++)
         {
@@ -299,15 +267,8 @@ int main(int argc, char *argv[])
             p.g = points_0[i].color.g * 255;
             p.b = points_0[i].color.b * 255;
             cloud_1->points[i] = p;
-
-                        pcl::Normal n;
-                        n.normal_x = normals_0[i].x;
-                        n.normal_y = -normals_0[i].y;
-                        n.normal_z = -normals_0[i].z;
-                        normals->points[i] = n;
-
         }
-        */
+
         /* RANSAC Seg plane
         /
         start = std::chrono::steady_clock::now();

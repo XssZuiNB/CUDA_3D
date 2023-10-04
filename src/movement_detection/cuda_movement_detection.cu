@@ -23,7 +23,7 @@ namespace gca
 {
 __forceinline__ __device__ float color_intensity(gca::color3 color)
 {
-    return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b) * 255.0f;
+    return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b);
 }
 
 struct compute_residual_functor
@@ -108,8 +108,8 @@ struct compute_cluster_score_functor
                           thrust::get<0>(sum_cluster_residual_and_size) /
                           (thrust::get<1>(sum_cluster_residual_and_size) *
                            thrust::get<1>(sum_cluster_residual_and_size));
-        // return logf(1 + res_square);
-        return expf(res_square) / expf(m_weighted_mean_residual * m_weighted_mean_residual);
+        return logf(1 + res_square / m_weighted_mean_residual * m_weighted_mean_residual);
+        // return expf(res_square) / expf(m_weighted_mean_residual * m_weighted_mean_residual);
     }
 };
 

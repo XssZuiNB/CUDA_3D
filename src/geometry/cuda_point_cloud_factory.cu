@@ -214,9 +214,7 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
                                             depth_y, threshold_min, threshold_max) *
                 depth_scale;
         else
-            // depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
-            depth_value =
-                __edges_filter(depth_frame_data, width, height, depth_x, depth_y, depth_scale);
+            depth_value = __ldg(&depth_frame_data[depth_pixel_index]) * depth_scale;
 
         if (depth_value < threshold_min || depth_value > threshold_max)
         {
@@ -259,53 +257,6 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     }
 }
 
-/************************* For Debug, not be used in point cloud class **************************/
-bool cuda_make_point_cloud(std::vector<gca::point_t> &result,
-                           const gca::cuda_depth_frame &cuda_depth_container,
-                           const gca::cuda_color_frame &cuda_color_container,
-                           const gca::cuda_camera_param &param, float threshold_min_in_meter,
-                           float threshold_max_in_meter)
-{
-    auto depth_intrin_ptr = param.get_depth_intrinsics_ptr();
-    auto color_intrin_ptr = param.get_color_intrinsics_ptr();
-    auto depth2color_extrin_ptr = param.get_depth2color_extrinsics_ptr();
-    auto width = param.get_width();
-    auto height = param.get_height();
-    auto depth_scale = param.get_depth_scale();
-
-    if (!depth_intrin_ptr || !color_intrin_ptr || !depth2color_extrin_ptr || !width || !height)
-        return false;
-
-    if (depth_scale <= 0.0000001f)
-        return false;
-
-    if (threshold_max_in_meter < threshold_min_in_meter || threshold_min_in_meter <= 0.0000001f)
-        return false;
-
-    auto depth_pixel_count = width * height;
-    auto result_byte_size = sizeof(gca::point_t) * depth_pixel_count;
-
-    std::shared_ptr<gca::point_t> result_ptr;
-    if (!alloc_device(result_ptr, result_byte_size))
-        return false;
-
-    dim3 threads(32, 32);
-    dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
-
-    __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
-        result_ptr.get(), width, height, cuda_depth_container.get_depth_frame_vec().data().get(),
-        cuda_color_container.get_color_frame_vec().data().get(), depth_intrin_ptr, color_intrin_ptr,
-        depth2color_extrin_ptr, depth_scale, threshold_min_in_meter, threshold_max_in_meter);
-
-    if (cudaDeviceSynchronize() != cudaSuccess)
-        return false;
-
-    cudaMemcpy(result.data(), result_ptr.get(), result_byte_size, cudaMemcpyDefault);
-
-    return true;
-}
-
-/************************** This overload is used in point cloud class **************************/
 ::cudaError_t cuda_make_point_cloud(thrust::device_vector<gca::point_t> &result,
                                     const gca::cuda_depth_frame &cuda_depth_container,
                                     const gca::cuda_color_frame &cuda_color_container,
