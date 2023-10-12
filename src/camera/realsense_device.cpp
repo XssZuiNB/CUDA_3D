@@ -1,4 +1,4 @@
-#include "camera/realsense_device.hpp"
+#include "realsense_device.hpp"
 
 #include <cstring>
 #include <iostream>

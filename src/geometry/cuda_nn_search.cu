@@ -1,4 +1,5 @@
-#include "geometry/cuda_nn_search.cuh"
+#include "cuda_nn_search.cuh"
+
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
@@ -553,8 +554,9 @@ struct check_if_enough_radius_nn_functor
 /* variables for query points are named as *_Q, and for reference points as *_R */
 ::cudaError_t cuda_nn_search(thrust::device_vector<gca::index_t> &result_nn_idx_in_R,
                              const thrust::device_vector<gca::point_t> &points_Q,
-                             const thrust::device_vector<gca::point_t> &points_R, float3 min_bound,
-                             const float3 max_bound, const float search_radius)
+                             const thrust::device_vector<gca::point_t> &points_R,
+                             const float3 min_bound, const float3 max_bound,
+                             const float search_radius)
 {
     auto n_points_Q = points_Q.size();
     auto n_points_R = points_R.size();
@@ -680,8 +682,8 @@ struct check_if_enough_radius_nn_functor
     thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
         &result_pair_neighbors_begin_idx_and_count,
     const thrust::device_vector<gca::point_t> &points_Q,
-    const thrust::device_vector<gca::point_t> &points_R, float3 min_bound, const float3 max_bound,
-    const float search_radius)
+    const thrust::device_vector<gca::point_t> &points_R, const float3 min_bound,
+    const float3 max_bound, const float search_radius)
 {
     auto n_points_Q = points_Q.size();
     auto n_points_R = points_R.size();

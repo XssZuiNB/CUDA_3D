@@ -1,4 +1,5 @@
-#include "geometry/cuda_estimate_normals.cuh"
+#include "cuda_estimate_normals.cuh"
+
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"

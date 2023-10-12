@@ -3,7 +3,7 @@ enable_language(CUDA)
 find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(OpenMP REQUIRED)
-# find_package(Eigen3 REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 find_library(REALSENSE2_FOUND realsense2 HINTS ${LIBRARY_DIR} REQUIRED)
 if(NOT REALSENSE2_FOUND)
@@ -41,6 +41,14 @@ file(
 )
 
 file(
+    GLOB REGISTRATION_SRC
+    "registration/*.cpp"
+    "registration/*.hpp"
+    "registration/*.cu"
+    "registration/*.cuh"
+)
+
+file(
     GLOB UTIL_SRC
     "util/*.cpp"
     "util/*.hpp"    
@@ -55,6 +63,7 @@ add_library(
     ${CUDA_CONTAINER_SRC}
     ${GEOMETRY_SRC}
     ${MOVEMENT_DETECTION_SRC}
+    ${REGISTRATION_SRC}
     ${UTIL_SRC}
 )
 
@@ -77,8 +86,7 @@ target_link_libraries(
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
     OpenMP::OpenMP_CXX
-    # ${CUDA_npps_LIBRARY}
-    # Eigen3::Eigen
+    Eigen3::Eigen
 )
 
 set_target_properties(

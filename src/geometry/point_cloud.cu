@@ -1,10 +1,11 @@
+#include "point_cloud.hpp"
+
 #include "geometry/cuda_clustering.cuh"
 #include "geometry/cuda_estimate_normals.cuh"
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/cuda_voxel_grid_down_sample.cuh"
 #include "geometry/geometry_util.cuh"
-#include "geometry/point_cloud.hpp"
 #include "util/console_color.hpp"
 
 #include <memory>

@@ -24,6 +24,11 @@
 #define MINF -__FLT_MAX__
 #define INF __FLT_MAX__
 
+__host__ __device__ __forceinline__ float squared_norm(const float3 &vec)
+{
+    return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z;
+}
+
 __host__ __device__ __forceinline__ float norm(const float3 &vec)
 {
     return sqrtf(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);

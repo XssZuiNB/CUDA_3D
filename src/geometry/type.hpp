@@ -42,6 +42,11 @@ struct color3
         return *this;
     }
 
+    __forceinline__ __host__ __device__ float to_intensity() const
+    {
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
     template <typename T> __forceinline__ __host__ __device__ color3 operator/(T n) const
     {
         auto _n = (float)n;

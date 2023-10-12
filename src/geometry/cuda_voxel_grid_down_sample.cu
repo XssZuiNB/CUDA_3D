@@ -1,4 +1,5 @@
-#include "geometry/cuda_voxel_grid_down_sample.cuh"
+#include "cuda_voxel_grid_down_sample.cuh"
+
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"

@@ -203,21 +203,20 @@ int main(int argc, char *argv[])
         auto color_0 = rs_cam_0.get_color_raw_data();
         auto depth_0 = rs_cam_0.get_depth_raw_data();
 
-        auto start = std::chrono::steady_clock::now();
-
         gpu_color_0.upload((uint8_t *)color_0, rs_cam_0.get_width(), rs_cam_0.get_height());
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
-        auto pc_0 = gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.4);
+        auto pc_0 =
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 4);
 
-        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 4);
+        auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
 
         pc_downsampling_0->estimate_normals(0.04f);
 
-        /*
         detector.update_point_cloud(pc_downsampling_0);
+        auto start = std::chrono::steady_clock::now();
         auto moving_pc = detector.moving_objects_detection();
         auto end = std::chrono::steady_clock::now();
 
@@ -232,6 +231,56 @@ int main(int argc, char *argv[])
         std::cout << "GPU pc1 after remove noise number: " << pc_remove_noise_0->points_number()
                   << std::endl;
         std::cout << "GPU pc1 Voxel number: " << pc_downsampling_0->points_number() << std::endl;
+        std::cout << "__________________________________________________" << std::endl;
+
+        /*
+        if (if_first_frame)
+        {
+            auto points_0 = pc_downsampling_0->download();
+            auto number_of_points = points_0.size();
+
+            cloud_0->points.resize(number_of_points);
+            for (size_t i = 0; i < number_of_points; i++)
+            {
+                PointT p;
+                p.x = points_0[i].coordinates.x;
+                p.y = -points_0[i].coordinates.y;
+                p.z = -points_0[i].coordinates.z;
+                p.r = 255;
+                p.g = 0;
+                p.b = 0;
+                cloud_0->points[i] = p;
+            }
+            if_first_frame = false;
+            continue;
+        }
+
+        auto points_0 = pc_downsampling_0->download();
+        auto number_of_points = points_0.size();
+
+        cloud_1->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_0[i].coordinates.x;
+            p.y = -points_0[i].coordinates.y;
+            p.z = -points_0[i].coordinates.z;
+            p.r = 0;
+            p.g = 255;
+            p.b = 0;
+            cloud_1->points[i] = p;
+        }
+
+        *cloud_1 += *cloud_0;
+        std::cout << cloud_0->size();
+        viewer_0.showCloud(cloud_0);
+
+        while (!exit_requested)
+        {
+            sleep(.01);
+        }
+        */
+
         if (moving_pc)
         {
             auto points_0 = moving_pc->download();
@@ -252,8 +301,8 @@ int main(int argc, char *argv[])
             }
             viewer_0.showCloud(cloud_1);
         }
-        */
 
+        /*
         auto points_0 = pc_downsampling_0->download();
         auto number_of_points = points_0.size();
         cloud_1->points.resize(number_of_points);
@@ -268,6 +317,8 @@ int main(int argc, char *argv[])
             p.b = points_0[i].color.b * 255;
             cloud_1->points[i] = p;
         }
+        viewer_0.showCloud(cloud_1);
+        */
 
         /* RANSAC Seg plane
         /
@@ -305,19 +356,27 @@ int main(int argc, char *argv[])
         }
         */
 
-        /* clustering using normals */
         /*
+        auto points_0 = pc_downsampling_0->download();
+        auto number_of_points = points_0.size();
+        cloud_1->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_0[i].coordinates.x;
+            p.y = -points_0[i].coordinates.y;
+            p.z = -points_0[i].coordinates.z;
+            p.r = points_0[i].color.r * 255;
+            p.g = points_0[i].color.g * 255;
+            p.b = points_0[i].color.b * 255;
+            cloud_1->points[i] = p;
+        }
         pcl::search::Search<pcl::PointXYZRGBA>::Ptr tree =
             std::shared_ptr<pcl::search::Search<pcl::PointXYZRGBA>>(
                 new pcl::search::KdTree<pcl::PointXYZRGBA>);
-
-        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
-        pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> normal_estimator;
-        normal_estimator.setSearchMethod(tree);
-        normal_estimator.setInputCloud(cloud_1);
-        normal_estimator.setKSearch(20);
-        normal_estimator.compute(*normals);
-
+        */
+        /* clustering using normals */
+        /*
         pcl::RegionGrowing<pcl::PointXYZRGBA, pcl::Normal> reg;
         reg.setMinClusterSize(50);
         reg.setMaxClusterSize(1000000);
@@ -356,24 +415,35 @@ int main(int argc, char *argv[])
             cloud_cluster->is_dense = true;
 
             pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
-            icp.setMaximumIterations(1);
+            icp.setMaximumIterations(3);
             icp.setInputSource(cloud_cluster);
             icp.setInputTarget(cloud_0);
+            icp.setMaxCorrespondenceDistance(0.1);
             pcl::PointCloud<pcl::PointXYZRGBA> Final;
             icp.align(Final);
 
             double avg_residual = icp.getFitnessScore();
             std::cout << "residual: " << avg_residual << std::endl;
 
-            if (avg_residual > 0.002)
+            if (icp.hasConverged())
             {
-                for (std::vector<int>::const_iterator pit = it->indices.begin();
-                     pit != it->indices.end(); ++pit)
+                std::cout << "ICP has converged." << std::endl;
+                std::cout << "The transformation matrix is:" << std::endl;
+                std::cout << (icp.getFinalTransformation().block<3, 1>(0, 3)).norm() << std::endl;
+                if ((icp.getFinalTransformation().block<3, 1>(0, 3)).norm() > 0.03)
                 {
-                    cloud_1->points[*pit].r = 255;
-                    cloud_1->points[*pit].g = 0;
-                    cloud_1->points[*pit].b = 0;
+                    for (std::vector<int>::const_iterator pit = it->indices.begin();
+                         pit != it->indices.end(); ++pit)
+                    {
+                        cloud_1->points[*pit].r = 255;
+                        cloud_1->points[*pit].g = 0;
+                        cloud_1->points[*pit].b = 0;
+                    }
                 }
+            }
+            else
+            {
+                std::cout << "ICP did not converge." << std::endl;
             }
         }
         end = std::chrono::steady_clock::now();
@@ -381,42 +451,10 @@ int main(int argc, char *argv[])
         std::cout << "residual: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
+
+        viewer_0.showCloud(cloud_1);
+        *cloud_0 = *cloud_1;
         */
-        /*
-        pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
-        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_aligned(
-            new pcl::PointCloud<pcl::PointXYZRGBA>);
-        icp.setInputSource(cloud_0);
-        icp.setInputTarget(cloud_1);
-        icp.align(*cloud_aligned);
-
-        if (icp.hasConverged())
-        {
-            std::cout << "ICP converged with score: " << icp.getFitnessScore() << std::endl;
-            pcl::KdTreeFLANN<pcl::PointXYZRGBA> kdtree;
-            kdtree.setInputCloud(cloud_1);
-
-            for (size_t i = 0; i < cloud_aligned->points.size(); ++i)
-            {
-                std::vector<int> pointIdxNKNSearch(1);
-                std::vector<float> pointNKNSquaredDistance(1);
-
-                if (kdtree.nearestKSearch(cloud_aligned->points[i], 1, pointIdxNKNSearch,
-                                          pointNKNSquaredDistance) > 0)
-                {
-                    double distance = std::sqrt(pointNKNSquaredDistance[0]);
-                    if (distance > 0.05)
-                    { // 例如，残差阈值为0.05，可以根据需要调整
-                        cloud_1->points[i].r = 255;
-                        cloud_1->points[i].g = 0;
-                        cloud_1->points[i].b = 0;
-                    }
-                }
-            }
-        }
-        */
-        // viewer_0.showCloud(cloud_1);
-        // *cloud_0 = *cloud_1;
         /* PCL Over seg*/
         /*
         pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
@@ -455,29 +493,29 @@ int main(int argc, char *argv[])
         }
         */
         /*
-        start = std::chrono::steady_clock::now();
-        pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
-        ne.setInputCloud(cloud_0);
+        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+        pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> normal_estimator;
+        normal_estimator.setSearchMethod(tree);
+        normal_estimator.setInputCloud(cloud_1);
+        normal_estimator.setRadiusSearch(0.04);
+        normal_estimator.compute(*normals);
 
-        pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(
-            new pcl::search::KdTree<pcl::PointXYZRGBA>());
-        ne.setSearchMethod(tree);
+        auto normal_gpu = pc_downsampling_0->download_normals();
 
-        ne.setRadiusSearch(0.02);
-        ne.compute(*normals);
-        end = std::chrono::steady_clock::now();
-        std::cout << "pcl time in milliseconds: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                  << "ms" << std::endl;
-        */
-        /*
-        for (size_t i = 0; i < normals->size(); ++i)
+        for (size_t i = 0; i < normals->size(); i++)
         {
-            std::cout << "Normal for point " << i << ": " << normals->points[i].normal_x << ", "
-                      << normals->points[i].normal_y << ", " << normals->points[i].normal_z
-                      << std::endl;
-            std::cout << "gpu Normal       " << i << ": " << normals_0[i].x << ", "
-                      << normals_0[i].y << ", " << normals_0[i].z << std::endl;
+            if (abs(normals->points[i].normal_x) - abs(normal_gpu[i].x) > 0.01 ||
+                abs(normals->points[i].normal_y) - abs(normal_gpu[i].y) > 0.01 ||
+                abs(normals->points[i].normal_z) - abs(normal_gpu[i].z) > 0.01)
+            {
+                std::cout << "normals false: " << i << std::endl;
+                std::cout << "Normal for point " << i << ": " << normals->points[i].normal_x <<
+        ", "
+                          << normals->points[i].normal_y << ", " << normals->points[i].normal_z
+                          << std::endl;
+                std::cout << "gpu Normal       " << i << ": " << normal_gpu[i].x << ", "
+                          << normal_gpu[i].y << ", " << normal_gpu[i].z << std::endl;
+            }
         }
         */
         /*
@@ -635,10 +673,7 @@ int main(int argc, char *argv[])
                << std::endl;
      std::cout << "neighbors: " << neighbor_indicies.size() << std::endl;
         */
-
-        viewer_0.showCloud(cloud_1);
         //   viewer_1.spinOnce();
-        std::cout << "__________________________________________________" << std::endl;
     }
 
     return 0;

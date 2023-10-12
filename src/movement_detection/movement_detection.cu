@@ -1,6 +1,7 @@
 #include "geometry/point_cloud.hpp"
 #include "movement_detection/cuda_movement_detection.cuh"
 #include "movement_detection/movement_detection.hpp"
+#include "registration/cuda_compute_color_gradient.cuh"
 #include "util/cuda_util.cuh"
 
 #include <thrust/copy.h>
@@ -24,8 +25,8 @@ void movement_detection::set_target_point_cloud(std::shared_ptr<gca::point_cloud
 }
 void movement_detection::update_point_cloud(std::shared_ptr<gca::point_cloud> pc_new)
 {
-    m_pc_ptr_src = m_pc_ptr_tgt;
-    m_pc_ptr_tgt = pc_new;
+    m_pc_ptr_tgt = m_pc_ptr_src;
+    m_pc_ptr_src = pc_new;
 }
 
 std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
@@ -38,7 +39,40 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
     auto &pts_src = m_pc_ptr_src->get_points();
     auto &pts_tgt = m_pc_ptr_tgt->get_points();
 
+    auto &normals_src = m_pc_ptr_src->get_normals();
+    auto &normals_tgt = m_pc_ptr_tgt->get_normals();
+
+    auto min_bound_tgt_with_padding =
+        m_pc_ptr_tgt->get_min_bound() - make_float3(1.5 * m_compute_tgt_color_gradient_radius,
+                                                    1.5 * m_compute_tgt_color_gradient_radius,
+                                                    1.5 * m_compute_tgt_color_gradient_radius);
+    auto max_bound_tgt_with_padding =
+        m_pc_ptr_tgt->get_max_bound() + make_float3(1.5 * m_compute_tgt_color_gradient_radius,
+                                                    1.5 * m_compute_tgt_color_gradient_radius,
+                                                    1.5 * m_compute_tgt_color_gradient_radius);
+
+    if (m_compute_tgt_color_gradient_radius * std::numeric_limits<int>::max() <
+        max(max(max_bound_tgt_with_padding.x - min_bound_tgt_with_padding.x,
+                max_bound_tgt_with_padding.y - min_bound_tgt_with_padding.y),
+            max_bound_tgt_with_padding.z - min_bound_tgt_with_padding.z))
+    {
+        std::cout << YELLOW << "Radius is too small!" << std::endl;
+        return nullptr;
+    }
+
+    // computer color gradient of tgt point cloud.
+    auto color_gradient_tgt = thrust::device_vector<float3>(pts_tgt.size());
+    auto err = cuda_compute_color_gradient(color_gradient_tgt, pts_tgt, normals_tgt,
+                                           min_bound_tgt_with_padding, max_bound_tgt_with_padding,
+                                           m_compute_tgt_color_gradient_radius);
+    if (err != ::cudaSuccess)
+        return nullptr;
+
+    auto nn_src_tgt = gca::point_cloud::nn_search(*m_pc_ptr_src, *m_pc_ptr_tgt, m_nn_search_radius);
+
     auto output = std::make_shared<gca::point_cloud>(pts_src.size());
+
+    /*
 
     thrust::device_vector<float> residuals;
     float mean_residual_over_all;
@@ -53,6 +87,8 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
 
     auto clustering_result_pair_host =
         m_pc_ptr_src->euclidean_clustering(m_clustering_tolerance, 80, pts_src.size());
+    if (!clustering_result_pair_host.second)
+        return nullptr;
 
     thrust::device_vector<gca::index_t> clusters(pts_src.size());
     thrust::copy(clustering_result_pair_host.first->begin(),
@@ -60,7 +96,7 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
 
     err = cuda_moving_objects_seg(output->m_points, clustering_result_pair_host.second, clusters,
                                   pts_src, residuals, mean_residual_over_all);
-
+    */
     return output;
 }
 

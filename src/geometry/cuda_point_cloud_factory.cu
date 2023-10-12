@@ -1,6 +1,7 @@
+#include "cuda_point_cloud_factory.cuh"
+
 #include "camera/camera_param.hpp"
 #include "cuda_container/cuda_container.hpp"
-#include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
@@ -17,12 +18,12 @@ namespace gca
 
 __forceinline__ __device__ static float __gaussian(float x, float sigma)
 {
-    return exp(-(x * x) / (2 * sigma * sigma));
+    return expf(-(x * x) / (2 * sigma * sigma));
 }
 
 __forceinline__ __device__ static float __gaussian_square(float x_square, float sigma)
 {
-    return exp(-x_square / (2 * sigma * sigma));
+    return expf(-x_square / (2 * sigma * sigma));
 }
 
 __forceinline__ __device__ static float __bilateral_filter(const uint16_t *input,
@@ -82,6 +83,9 @@ __forceinline__ __device__ static float __bilateral_filter(
             }
 
             auto neighbor = __ldg(&input[ny * input_width + nx]);
+            if (!neighbor)
+                continue;
+
             float weight = __gaussian_square((dx * dx + dy * dy), sigma_space) *
                            __gaussian(abs(depth_data - neighbor), sigma_depth);
 
@@ -96,11 +100,11 @@ __forceinline__ __device__ static float __bilateral_filter(
 __forceinline__ __device__ static float __adaptive_bilateral_filter(
     const uint16_t *input, uint32_t input_width, uint32_t input_height, float depth_scale,
     int index_x, int index_y, float threshold_min_in_meter, float threshold_max_in_meter,
-    uint32_t steps_num = 5, float step_len = 0.8f, float min_filter_radius = 1.5f)
+    uint32_t steps_num = 5, float step_len = 0.5f, float min_filter_radius = 1.0f)
 {
     auto steps = steps_num;
     auto min_filter_r = min_filter_radius;
-    constexpr auto sigma_space = 40.0f;
+    constexpr auto sigma_space = 80.0f;
     constexpr auto sigma_depth = 100.0f;
 
     auto depth_data = __ldg(&input[index_y * input_width + index_x]);
@@ -109,7 +113,7 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
     auto depth_value = depth_data * depth_scale;
     if (depth_value < threshold_min_in_meter || depth_value > threshold_max_in_meter)
     {
-        return depth_value;
+        return depth_data;
     }
 
     auto step = static_cast<uint32_t>((depth_value - threshold_min_in_meter) / step_len);
@@ -117,7 +121,7 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
         step = steps;
 
     auto new_sigma_space = sigma_space + step * 10.0f;
-    auto new_sigma_depth = sigma_depth - step * 10.0f;
+    auto new_sigma_depth = sigma_depth + step * 10.0f;
     auto filter_r = min_filter_r * step;
 
     return __bilateral_filter(input, input_width, input_height, index_x, index_y, depth_data,
@@ -126,7 +130,8 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
 
 /************************************** Filter out eddges ***************************************/
 /* See: https://github.com/raluca-scona/Joint-VO-SF/blob/master/segmentation_background.cpp     */
-/* line 56 to 69                                                                                */
+/* line 56 to 69. NOT USED !!!                                                                  */
+/*
 __forceinline__ __device__ static float __edges_filter(const uint16_t *depth, uint32_t input_width,
                                                        uint32_t input_height, int index_x,
                                                        int index_y, float depth_scale)
@@ -148,6 +153,7 @@ __forceinline__ __device__ static float __edges_filter(const uint16_t *depth, ui
 
     return (sum_diff_depth * depth_scale < threshold_edge) * depth_value * depth_scale;
 }
+*/
 
 /****************** Create point cloud from rgbd, include invalid point remove ******************/
 
@@ -180,12 +186,13 @@ __forceinline__ __device__ static void __xyz_to_color_uv(const float xyz[3], flo
     uv[1] = (xyz[1] * color_intrin.fy / xyz[2]) + color_intrin.cy;
 }
 
+template <bool if_bilateral_filter>
 __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     gca::point_t *point_set_out, const uint32_t width, const uint32_t height,
     const uint16_t *depth_frame_data, const uint8_t *color_frame_data,
     const gca::intrinsics *depth_intrin_ptr, const gca::intrinsics *color_intrin_ptr,
     const gca::extrinsics *depth_to_color_extrin_ptr, const float depth_scale, float threshold_min,
-    float threshold_max, bool if_bilateral_filter = false)
+    float threshold_max)
 {
 
     __shared__ gca::intrinsics depth_intrin_shared;
@@ -286,12 +293,10 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
     dim3 threads(32, 32);
     dim3 depth_blocks(div_up(width, threads.x), div_up(height, threads.y));
 
-    __kernel_make_pointcloud_Z16_BGR8<<<depth_blocks, threads>>>(
+    __kernel_make_pointcloud_Z16_BGR8<true><<<depth_blocks, threads>>>(
         thrust::raw_pointer_cast(result.data()), width, height, depth_frame_cuda_ptr,
         color_frame_cuda_ptr, depth_intrin_ptr, color_intrin_ptr, depth2color_extrin_ptr,
-        depth_scale, threshold_min_in_meter,
-        threshold_max_in_meter); // didnt use bilateral filter, later maybe a compare to see if it
-                                 // is needed
+        depth_scale, threshold_min_in_meter, threshold_max_in_meter);
 
     auto err = cudaDeviceSynchronize();
     if (err != ::cudaSuccess)

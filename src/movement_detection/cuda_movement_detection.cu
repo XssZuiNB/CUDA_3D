@@ -21,11 +21,6 @@
 
 namespace gca
 {
-__forceinline__ __device__ float color_intensity(gca::color3 color)
-{
-    return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b);
-}
-
 struct compute_residual_functor
 {
     compute_residual_functor(const thrust::device_vector<gca::point_t> &pts_tgt_frame,
@@ -56,7 +51,7 @@ struct compute_residual_functor
 
             auto geometry_redidual = norm(p.coordinates - nn.coordinates);
 
-            auto intensity_redidual = abs(color_intensity(p.color) - color_intensity(nn.color));
+            auto intensity_redidual = abs(p.color.to_intensity() - nn.color.to_intensity());
 
             return (m_weight_geometry * geometry_redidual +
                     m_weight_photometry * intensity_redidual);
@@ -69,14 +64,18 @@ struct compute_residual_functor
 struct reduce_sum_cluster_residual_and_size_functor
 {
     reduce_sum_cluster_residual_and_size_functor(thrust::device_vector<float> &cluster_residuals,
-                                                 thrust::device_vector<gca::counter_t> &n)
+                                                 thrust::device_vector<gca::counter_t> &n,
+                                                 const float mean_residual_over_all)
         : m_cluster_residual_ptr(thrust::raw_pointer_cast(cluster_residuals.data()))
         , m_n_pts_ptr(thrust::raw_pointer_cast(n.data()))
+        , m_mean_r_over_all(mean_residual_over_all)
+
     {
     }
 
     float *m_cluster_residual_ptr;
     gca::counter_t *m_n_pts_ptr;
+    const float m_mean_r_over_all;
 
     __forceinline__ __device__ void operator()(
         const thrust::tuple<gca::index_t, float> &cluster_and_res)
@@ -85,31 +84,43 @@ struct reduce_sum_cluster_residual_and_size_functor
         if (cluster_num != -1)
         {
             auto res = thrust::get<1>(cluster_and_res);
+            auto robust_res = cauchy_kernel(res);
             atomicAdd(&m_n_pts_ptr[cluster_num], 1);
-            atomicAdd(&m_cluster_residual_ptr[cluster_num], res);
+            atomicAdd(&m_cluster_residual_ptr[cluster_num], robust_res);
         }
+    }
+
+private:
+    __forceinline__ __device__ float cauchy_kernel(float res)
+    {
+        auto c_square = 0.25 * (m_mean_r_over_all * m_mean_r_over_all);
+        // c^2/2 should be devided later, it is omitted here for simplification
+        return logf(1.0f + res * res / c_square);
     }
 };
 
 struct compute_cluster_score_functor
 {
-    compute_cluster_score_functor(const float mean_residual_over_all)
-        : m_weighted_mean_residual(m_weight * mean_residual_over_all)
+    compute_cluster_score_functor(const float mean_residual_over_all, const float var)
+        : m_mean_r_over_all(mean_residual_over_all)
+        , m_sigma(sqrtf(var))
     {
     }
 
-    const float m_weighted_mean_residual;
-    static constexpr float m_weight = 1.5;
+    const float m_mean_r_over_all;
+    const float m_sigma;
+    const float m_weight = 1.5;
+    const float repr_res = m_mean_r_over_all + m_sigma;
 
     __forceinline__ __device__ float operator()(
         const thrust::tuple<float, gca::counter_t> &sum_cluster_residual_and_size)
     {
-        auto res_square = thrust::get<0>(sum_cluster_residual_and_size) *
-                          thrust::get<0>(sum_cluster_residual_and_size) /
-                          (thrust::get<1>(sum_cluster_residual_and_size) *
-                           thrust::get<1>(sum_cluster_residual_and_size));
-        return logf(1 + res_square / m_weighted_mean_residual * m_weighted_mean_residual);
-        // return expf(res_square) / expf(m_weighted_mean_residual * m_weighted_mean_residual);
+        auto res_ = thrust::get<0>(sum_cluster_residual_and_size) /
+                    thrust::get<1>(sum_cluster_residual_and_size);
+        auto robust_thres =
+            logf(1.0f + repr_res * repr_res / (0.25 * m_mean_r_over_all * m_mean_r_over_all));
+
+        return res_ / robust_thres;
     }
 };
 
@@ -129,7 +140,7 @@ struct segment_moving_cluster_functor
         auto p = thrust::get<1>(cluster_point_tuple);
         auto score = (m_cluster_scores_ptr[cluster]);
 
-        if (score > 0.677f)
+        if (score >= 0.6f)
         {
             p.color.r = 1.0f;
             p.color.g = 0.0f;
@@ -137,6 +148,21 @@ struct segment_moving_cluster_functor
         }
 
         return p;
+    }
+};
+
+struct compute_var_functor
+{
+    compute_var_functor(float mean_residual_over_all)
+        : m_mean_residual_over_all(mean_residual_over_all)
+    {
+    }
+
+    const float m_mean_residual_over_all;
+
+    __forceinline__ __device__ float operator()(float x)
+    {
+        return (x - m_mean_residual_over_all) * (x - m_mean_residual_over_all);
     }
 };
 
@@ -164,7 +190,7 @@ struct segment_moving_cluster_functor
     mean_residual =
         thrust::reduce(residuals.begin(), residuals.end(), 0.0f, thrust::plus<float>()) / n_points;
 
-    std::cout << "Res total: " << mean_residual * n_points << std::endl;
+    std::cout << "mean: " << mean_residual << std::endl;
 
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
@@ -187,19 +213,25 @@ struct segment_moving_cluster_functor
     if (n_points != output.size())
         output.resize(n_points);
 
+    auto var = thrust::transform_reduce(residuals.begin(), residuals.end(),
+                                        compute_var_functor(mean_residual_over_all), 0.0f,
+                                        thrust::plus<float>()) /
+               n_points;
+
     thrust::device_vector<float> cluster_residuals(n_clusters, 0.0f);
     thrust::device_vector<gca::counter_t> n_points_in_cluster(n_clusters, 0);
 
     thrust::for_each(
         thrust::make_zip_iterator(thrust::make_tuple(clusters.begin(), residuals.begin())),
         thrust::make_zip_iterator(thrust::make_tuple(clusters.end(), residuals.end())),
-        reduce_sum_cluster_residual_and_size_functor(cluster_residuals, n_points_in_cluster));
+        reduce_sum_cluster_residual_and_size_functor(cluster_residuals, n_points_in_cluster,
+                                                     mean_residual_over_all));
     auto err = cudaGetLastError();
     if (err != ::cudaSuccess)
         return err;
 
-    print_device_vector(cluster_residuals, "cluster r: ");
-    print_device_vector(n_points_in_cluster, "cluster n: ");
+    print_device_vector(cluster_residuals, "res: ");
+    print_device_vector(n_points_in_cluster, "num: ");
 
     thrust::device_vector<float> cluster_scores(n_clusters);
     thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(cluster_residuals.begin(),
@@ -207,7 +239,7 @@ struct segment_moving_cluster_functor
                       thrust::make_zip_iterator(
                           thrust::make_tuple(cluster_residuals.end(), n_points_in_cluster.end())),
                       cluster_scores.begin(),
-                      compute_cluster_score_functor(mean_residual_over_all));
+                      compute_cluster_score_functor(mean_residual_over_all, var));
     err = cudaGetLastError();
     if (err != ::cudaSuccess)
         return err;
