@@ -63,6 +63,11 @@ public:
                                                          gca::point_cloud &reference_pc,
                                                          float radius);
 
+    static auto search_radius(gca::point_cloud &query_pc, gca::point_cloud &reference_pc,
+                              float radius)
+        -> thrust::pair<thrust::device_vector<gca::index_t>,
+                        thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>>;
+
     static void nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
                           gca::point_cloud &reference_pc, float radius);
 

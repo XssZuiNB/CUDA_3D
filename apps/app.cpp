@@ -212,13 +212,16 @@ int main(int argc, char *argv[])
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
+        auto start = std::chrono::steady_clock::now();
+        auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "CLusters: " << cluster.second << std::endl;
 
         pc_downsampling_0->estimate_normals(0.04f);
 
         detector.update_point_cloud(pc_downsampling_0);
-        auto start = std::chrono::steady_clock::now();
+
         auto moving_pc = detector.moving_objects_detection();
-        auto end = std::chrono::steady_clock::now();
 
         std::cout << "Total cuda time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
@@ -231,7 +234,6 @@ int main(int argc, char *argv[])
         std::cout << "GPU pc1 after remove noise number: " << pc_remove_noise_0->points_number()
                   << std::endl;
         std::cout << "GPU pc1 Voxel number: " << pc_downsampling_0->points_number() << std::endl;
-        std::cout << "__________________________________________________" << std::endl;
 
         /*
         if (if_first_frame)
@@ -280,7 +282,7 @@ int main(int argc, char *argv[])
             sleep(.01);
         }
         */
-
+        /*
         if (moving_pc)
         {
             auto points_0 = moving_pc->download();
@@ -301,11 +303,11 @@ int main(int argc, char *argv[])
             }
             viewer_0.showCloud(cloud_1);
         }
+        */
 
-        /*
         auto points_0 = pc_downsampling_0->download();
         auto number_of_points = points_0.size();
-        cloud_1->points.resize(number_of_points);
+        cloud_0->points.resize(number_of_points);
         for (size_t i = 0; i < number_of_points; i++)
         {
             PointT p;
@@ -315,10 +317,9 @@ int main(int argc, char *argv[])
             p.r = points_0[i].color.r * 255;
             p.g = points_0[i].color.g * 255;
             p.b = points_0[i].color.b * 255;
-            cloud_1->points[i] = p;
+            cloud_0->points[i] = p;
         }
-        viewer_0.showCloud(cloud_1);
-        */
+        viewer_0.showCloud(cloud_0);
 
         /* RANSAC Seg plane
         /
@@ -575,9 +576,9 @@ int main(int argc, char *argv[])
 
         std::vector<pcl::PointIndices> cluster_indices;
         pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
-        ec.setClusterTolerance(0.03);
+        ec.setClusterTolerance(0.04f);
         ec.setMinClusterSize(100);
-        ec.setMaxClusterSize(25000);
+        ec.setMaxClusterSize(200000);
         ec.setSearchMethod(tree);
         ec.setInputCloud(cloud_0);
 
@@ -587,7 +588,12 @@ int main(int argc, char *argv[])
         for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin();
              it != cluster_indices.end(); ++it)
         {
-            j++;
+            j += 1;
+        }
+
+        if (j != cluster.second)
+        {
+            return 0;
         }
 
         std::cout << "PCL clustering time in microseconds: "
@@ -639,13 +645,13 @@ int main(int argc, char *argv[])
         */
 
         /* PCL Radius Outlier removal test */
-        /*
+
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
 
         pcl::RadiusOutlierRemoval<pcl::PointXYZRGBA> sor_radius;
         sor_radius.setInputCloud(cloud_0);
-        sor_radius.setRadiusSearch(0.025);
+        sor_radius.setRadiusSearch(0.02);
         sor_radius.setMinNeighborsInRadius(6);
 
         start = std::chrono::steady_clock::now();
@@ -660,20 +666,21 @@ int main(int argc, char *argv[])
                   << "ms" << std::endl;
 
         std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
-        */
+
+        /* Voxel Grid PCL */
         /*
-        auto start = std::chrono::steady_clock::now();
-     thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>> idx_and_count;
-     thrust::device_vector<gca::index_t> neighbor_indicies;
-     cuda_search_radius_neighbors(neighbor_indicies, idx_and_count, m_points,
-     grid_cells_min_bound, grid_cells_max_bound, radius); auto end =
-     std::chrono::steady_clock::now(); std::cout << "test run time dsearch radius: "
-               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() <<
-     "us"
-               << std::endl;
-     std::cout << "neighbors: " << neighbor_indicies.size() << std::endl;
+        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
+            new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+        pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+        sor.setInputCloud(cloud_0);
+        sor.setLeafSize(0.01f, 0.01f, 0.01f);
+        sor.filter(*cloud_filtered);
+
+        std::cout << "Filtered cloud size: " << cloud_filtered->size() << std::endl;
         */
-        //   viewer_1.spinOnce();
+
+        std::cout << "__________________________________________________" << std::endl;
     }
 
     return 0;

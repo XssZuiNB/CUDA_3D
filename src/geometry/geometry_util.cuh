@@ -1,6 +1,7 @@
 #pragma once
 
 #include "geometry/type.hpp"
+#include "util/math.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -8,6 +9,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
 #include <thrust/remove.h>
+#include <thrust/transform.h>
 #include <thrust/tuple.h>
 
 namespace gca
@@ -105,4 +107,39 @@ __forceinline__ void remove_invalid_points(thrust::device_vector<gca::point_t> &
 
     points.resize(new_size - points.begin());
 }
+
+/************************************* Transform point cloud ************************************/
+struct transform_point_functor
+{
+    transform_point_functor(const mat4x4 &trans_mat)
+    {
+        trans_mat.get_block<3, 3>(0, 0, m_rotation_mat);
+        trans_mat.get_block<3, 1>(0, 3, m_translation_mat);
+    }
+
+    mat3x3 m_rotation_mat;
+    mat3x1 m_translation_mat;
+
+    __forceinline__ __device__ void operator()(gca::point_t &p) const
+    {
+        mat3x1 coordinate_mat(p.coordinates);
+        p.coordinates = m_rotation_mat * coordinate_mat + m_translation_mat;
+    }
+};
+
+struct transform_normal_functor
+{
+    transform_normal_functor(const mat4x4 &trans_mat)
+    {
+        trans_mat.get_block<3, 3>(0, 0, m_rotation_mat);
+    }
+
+    mat3x3 m_rotation_mat;
+
+    __forceinline__ __device__ void operator()(float3 &n) const
+    {
+        mat3x1 coordinate_mat(n);
+        n = m_rotation_mat * coordinate_mat;
+    }
+};
 } // namespace gca

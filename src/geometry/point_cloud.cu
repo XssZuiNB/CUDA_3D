@@ -174,24 +174,19 @@ std::vector<float3> point_cloud::download_normals() const
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
 {
-    auto output = std::make_shared<point_cloud>(m_points.size());
-
     if (voxel_size <= 0.0)
     {
-        std::cout << YELLOW << "Voxel size is less than 0, a empty point cloud returned!"
-                  << std::endl;
-        return output;
+        std::cout << YELLOW << "Voxel size is less than 0, nullptr returned!" << std::endl;
+        return nullptr;
     }
 
     if (!m_has_bound)
     {
         if (!compute_min_max_bound())
         {
-            std::cout
-                << YELLOW
-                << "Compute bound of point cloud is not possible, a empty point cloud returned!"
-                << std::endl;
-            return output;
+            std::cout << YELLOW << "Compute bound of point cloud is not possible, nullptr returned!"
+                      << std::endl;
+            return nullptr;
         }
     }
 
@@ -208,22 +203,19 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
                 voxel_grid_max_bound.y - voxel_grid_min_bound.y),
             voxel_grid_max_bound.z - voxel_grid_min_bound.z))
     {
-        std::cout << YELLOW << "Voxel size is too small, a empty point cloud returned!"
-                  << std::endl;
-        return output;
+        std::cout << YELLOW << "Voxel size is too small, nullptr returned!" << std::endl;
+        return nullptr;
     }
 
-    auto err =
-        cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound, voxel_size);
-    if (err != ::cudaSuccess)
-    {
-        std::cout << YELLOW
-                  << "Compute voxel grid down sample failed, a invalid point cloud returned! \n"
-                  << std::endl;
-        return output;
-    }
+    auto pts = cuda_voxel_grid_downsample(m_points, m_min_bound, voxel_size);
 
-    return output;
+    auto result = std::make_shared<point_cloud>();
+    result->m_points.swap(pts);
+    result->m_has_bound = true;
+    result->m_min_bound = m_min_bound;
+    result->m_max_bound = m_max_bound;
+
+    return result;
 }
 
 std::shared_ptr<point_cloud> point_cloud::radius_outlier_removal(

@@ -28,8 +28,8 @@ private:
 
     // color icp
     static constexpr float m_compute_tgt_color_gradient_radius = 0.05f;
-    static constexpr float color_icp_lambda = 0.968;
-    static constexpr float color_icp_geometry_weight = 0.983939;  // sqrt(0.968)
-    static constexpr float color_icp_intensity_weight = 0.178885; // sqrt(1-0.968)
+    static constexpr float m_color_icp_lambda = 0.968;
+    static constexpr float m_color_icp_geometry_weight = 0.983939;  // sqrt(0.968)
+    static constexpr float m_color_icp_intensity_weight = 0.178885; // sqrt(1-0.968)
 };
 } // namespace gca

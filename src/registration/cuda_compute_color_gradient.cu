@@ -113,7 +113,7 @@ struct compute_color_gradient_functor
 
     thrust::transform(thrust::make_counting_iterator<gca::index_t>(0),
                       thrust::make_counting_iterator<gca::index_t>(n_points), result.begin(), func);
-    err = cudaGetLastError();
-    return err;
+
+    return ::cudaSuccess;
 }
 } // namespace gca

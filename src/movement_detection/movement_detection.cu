@@ -1,11 +1,15 @@
+#include "movement_detection.hpp"
+
+#include "geometry/cuda_nn_search.cuh"
 #include "geometry/point_cloud.hpp"
 #include "movement_detection/cuda_movement_detection.cuh"
-#include "movement_detection/movement_detection.hpp"
+#include "registration/cuda_color_icp_build_least_square.cuh"
 #include "registration/cuda_compute_color_gradient.cuh"
 #include "util/cuda_util.cuh"
 
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
+#include <thrust/sort.h>
 
 namespace gca
 {
@@ -70,10 +74,17 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
 
     auto nn_src_tgt = gca::point_cloud::nn_search(*m_pc_ptr_src, *m_pc_ptr_tgt, m_nn_search_radius);
 
-    auto output = std::make_shared<gca::point_cloud>(pts_src.size());
+    auto output = std::make_shared<gca::point_cloud>(*m_pc_ptr_src);
+    thrust::device_vector<float> result_rg_plus_rc(pts_src.size());
+    err = cuda_compute_residual_color_icp(result_rg_plus_rc, output->m_points, pts_tgt, normals_tgt,
+                                          color_gradient_tgt, nn_src_tgt, m_color_icp_lambda);
+    if (err != ::cudaSuccess)
+        return nullptr;
+
+    thrust::sort(result_rg_plus_rc.begin(), result_rg_plus_rc.end());
+    auto thre = result_rg_plus_rc[result_rg_plus_rc.size() / 3];
 
     /*
-
     thrust::device_vector<float> residuals;
     float mean_residual_over_all;
 
@@ -81,9 +92,8 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
 
     auto err =
         cuda_compute_res_and_mean_res(residuals, mean_residual_over_all, pts_src, pts_tgt, nn_s,
-                                      m_nn_search_radius, m_geometry_weight, m_photometry_weight);
-    if (err != ::cudaSuccess)
-        return nullptr;
+                                      m_nn_search_radius, m_geometry_weight,
+    m_photometry_weight); if (err != ::cudaSuccess) return nullptr;
 
     auto clustering_result_pair_host =
         m_pc_ptr_src->euclidean_clustering(m_clustering_tolerance, 80, pts_src.size());
@@ -94,8 +104,8 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
     thrust::copy(clustering_result_pair_host.first->begin(),
                  clustering_result_pair_host.first->end(), clusters.begin());
 
-    err = cuda_moving_objects_seg(output->m_points, clustering_result_pair_host.second, clusters,
-                                  pts_src, residuals, mean_residual_over_all);
+    err = cuda_moving_objects_seg(output->m_points, clustering_result_pair_host.second,
+    clusters, pts_src, residuals, mean_residual_over_all);
     */
     return output;
 }

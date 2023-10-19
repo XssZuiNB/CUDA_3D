@@ -227,6 +227,7 @@ struct check_if_queue_empty_functor
                                             points, min_bound, max_bound, cluster_tolerance);
     if (err != ::cudaSuccess)
     {
+        check_cuda_error(err, __FILE__, __LINE__);
         return err;
     }
 
@@ -238,6 +239,12 @@ struct check_if_queue_empty_functor
     thrust::copy(pair_neighbors_begin_idx_and_count.begin(),
                  pair_neighbors_begin_idx_and_count.end(),
                  pair_neighbors_begin_idx_and_count_host.begin());
+    err = cudaGetLastError();
+    if (err != ::cudaSuccess)
+    {
+        check_cuda_error(err, __FILE__, __LINE__);
+        return err;
+    }
 
     std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
     gca::index_t cluster = 0;

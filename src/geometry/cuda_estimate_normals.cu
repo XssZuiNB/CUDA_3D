@@ -21,18 +21,25 @@ namespace gca
 {
 struct fill_start_keys_functor
 {
-    fill_start_keys_functor(thrust::device_vector<gca::index_t> &keys)
-        : m_keys_ptr(thrust::raw_pointer_cast(keys.data()))
+    fill_start_keys_functor(const thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
+                                &pair_neighbors_begin_idx_and_count,
+                            thrust::device_vector<gca::index_t> &keys)
+        : m_pair_ptr(thrust::raw_pointer_cast(pair_neighbors_begin_idx_and_count.data()))
+        , m_keys_ptr(thrust::raw_pointer_cast(keys.data()))
     {
     }
 
+    const thrust::pair<gca::index_t, gca::counter_t> *m_pair_ptr;
     gca::index_t *m_keys_ptr;
 
-    __forceinline__ __device__ void operator()(
-        const thrust::pair<gca::index_t, gca::counter_t> &pair)
+    __forceinline__ __device__ void operator()(const gca::counter_t idx)
     {
-        auto start_idx = pair.first;
-        m_keys_ptr[start_idx] = 1;
+        auto start_idx = __ldg((&m_pair_ptr[idx].first));
+        auto n = __ldg((&m_pair_ptr[idx].second));
+        for (gca::counter_t i = 0; i < n; i++)
+        {
+            m_keys_ptr[start_idx + i] = idx;
+        }
     }
 };
 
@@ -48,10 +55,11 @@ struct compute_cumulant_functor
     __forceinline__ __device__ mat9x1 operator()(gca::index_t idx) const
     {
         mat9x1 cm;
-        cm.set_zero();
-
         if (idx < 0)
+        {
+            cm.set_zero();
             return cm;
+        }
 
         const auto point_x = __ldg(&m_points_ptr[idx].coordinates.x);
         const auto point_y = __ldg(&m_points_ptr[idx].coordinates.y);
@@ -121,31 +129,6 @@ struct compute_normal_functor
     }
 };
 
-struct fill_start_keys_functor_2
-{
-    fill_start_keys_functor_2(
-        const thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
-            &pair_neighbors_begin_idx_and_count,
-        thrust::device_vector<gca::index_t> &keys)
-        : m_pair_ptr(thrust::raw_pointer_cast(pair_neighbors_begin_idx_and_count.data()))
-        , m_keys_ptr(thrust::raw_pointer_cast(keys.data()))
-    {
-    }
-
-    const thrust::pair<gca::index_t, gca::counter_t> *m_pair_ptr;
-    gca::index_t *m_keys_ptr;
-
-    __forceinline__ __device__ void operator()(const gca::counter_t idx)
-    {
-        auto start_idx = m_pair_ptr[idx].first;
-        auto n = m_pair_ptr[idx].second;
-        for (gca::counter_t i = 0; i < n; i++)
-        {
-            m_keys_ptr[start_idx + i] = idx;
-        }
-    }
-};
-
 ::cudaError_t cuda_estimate_normals(thrust::device_vector<float3> &result_normals,
                                     const thrust::device_vector<gca::point_t> &points,
                                     const float3 min_bound, const float3 max_bound,
@@ -165,70 +148,26 @@ struct fill_start_keys_functor_2
                                             points, min_bound, max_bound, search_radius);
     if (err != ::cudaSuccess)
     {
+        check_cuda_error(err, __FILE__, __LINE__);
         return err;
     }
-    /*
-        auto start = std::chrono::steady_clock::now();
-        thrust::device_vector<gca::index_t> keys_(all_neighbors.size(), 0);
-        thrust::device_vector<gca::index_t> keys(all_neighbors.size());
-        thrust::for_each(pair_neighbors_begin_idx_and_count.begin() + 1,
-                         pair_neighbors_begin_idx_and_count.end(), fill_start_keys_functor(keys_));
 
-        err = cudaGetLastError();
-        if (err != ::cudaSuccess)
-        {
-            return err;
-        }
-
-        thrust::inclusive_scan(keys_.begin(), keys_.end(), keys.begin());
-        err = cudaGetLastError();
-        if (err != ::cudaSuccess)
-        {
-            return err;
-        }
-        auto end = std::chrono::steady_clock::now();
-        std::cout << "normal pre: "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() <<
-       "us"
-                  << std::endl;
-        */
-    auto start = std::chrono::steady_clock::now();
     thrust::counting_iterator<gca::counter_t> counter_iter(0);
     thrust::device_vector<gca::index_t> keys(all_neighbors.size());
     thrust::for_each(counter_iter, counter_iter + pair_neighbors_begin_idx_and_count.size(),
-                     fill_start_keys_functor_2(pair_neighbors_begin_idx_and_count, keys));
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
-    auto end = std::chrono::steady_clock::now();
-
-    std::cout << "normal pre2: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
+                     fill_start_keys_functor(pair_neighbors_begin_idx_and_count, keys));
 
     thrust::device_vector<mat9x1> cumulants_sum(n_points);
     auto compute_cumulant_iter =
         thrust::make_transform_iterator(all_neighbors.begin(), compute_cumulant_functor(points));
     thrust::reduce_by_key(keys.begin(), keys.end(), compute_cumulant_iter,
                           thrust::make_discard_iterator(), cumulants_sum.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
                           cumulants_sum.begin(), pair_neighbors_begin_idx_and_count.begin())),
                       thrust::make_zip_iterator(thrust::make_tuple(
                           cumulants_sum.end(), pair_neighbors_begin_idx_and_count.end())),
                       result_normals.begin(), compute_normal_functor());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     return ::cudaSuccess;
 }

@@ -11,11 +11,13 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
-#include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/permutation_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
+#include <thrust/tuple.h>
 
 namespace gca
 {
@@ -52,13 +54,10 @@ struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bo
         if (lhs.x != rhs.x)
             return lhs.x < rhs.x;
 
-        else if (lhs.y != rhs.y)
+        if (lhs.y != rhs.y)
             return lhs.y < rhs.y;
 
-        else if (lhs.z != rhs.z)
-            return lhs.z < rhs.z;
-
-        return false;
+        return lhs.z < rhs.z;
     }
 };
 
@@ -70,13 +69,18 @@ struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool
     }
 };
 
-struct add_points_functor
+struct add_and_count_points_functor
 {
-    __forceinline__ __device__ gca::point_t operator()(const gca::point_t &first,
-                                                       const gca::point_t &second)
+    __forceinline__ __device__ thrust::tuple<gca::point_t, gca::counter_t> operator()(
+        const thrust::tuple<gca::point_t, gca::counter_t> &fir,
+        const thrust::tuple<gca::point_t, gca::counter_t> &sec)
     {
-        return gca::point_t{first.coordinates + second.coordinates, first.color + second.color,
-                            gca::point_property::inactive};
+        auto fir_pts = thrust::get<0>(fir);
+        auto sec_pts = thrust::get<0>(sec);
+        return thrust::make_tuple(gca::point_t{fir_pts.coordinates + sec_pts.coordinates,
+                                               fir_pts.color + sec_pts.color,
+                                               gca::point_property::inactive},
+                                  thrust::get<1>(fir) + thrust::get<1>(sec));
     }
 };
 
@@ -92,81 +96,43 @@ struct compute_points_mean_functor
 
 /*********************************** Voxel grid down sampling ***********************************/
 
-::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
-                                         const thrust::device_vector<gca::point_t> &src_points,
-                                         const float3 &voxel_grid_min_bound, const float voxel_size)
+thrust::device_vector<gca::point_t> cuda_voxel_grid_downsample(
+    const thrust::device_vector<gca::point_t> &src_points, const float3 &voxel_grid_min_bound,
+    const float voxel_size)
 {
     auto n_points = src_points.size();
-    if (result_points.size() != n_points)
-    {
-        result_points.resize(n_points);
-    }
 
     thrust::device_vector<int3> keys(n_points);
     thrust::transform(src_points.begin(), src_points.end(), keys.begin(),
                       compute_voxel_key_functor(voxel_grid_min_bound, voxel_size));
-    auto err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> index_vec(n_points);
     thrust::sequence(index_vec.begin(), index_vec.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::sort_by_key(keys.begin(), keys.end(), index_vec.begin(), compare_voxel_key_functor());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     auto get_point_with_sorted_index_iter =
         thrust::make_permutation_iterator(src_points.begin(), index_vec.begin());
 
-    auto end_iter_of_points =
-        thrust::reduce_by_key(keys.begin(), keys.end(), get_point_with_sorted_index_iter,
-                              thrust::make_discard_iterator(), result_points.begin(),
-                              voxel_key_equal_functor(), add_points_functor())
-            .second;
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    thrust::device_vector<gca::counter_t> points_counter_per_voxel(n_points);
+    thrust::device_vector<gca::point_t> result_points(n_points);
 
-    thrust::device_vector<gca::counter_t> points_counter_per_voxel(n_points, 1);
-    auto end_iter_of_points_counter =
-        thrust::reduce_by_key(keys.begin(), keys.end(), points_counter_per_voxel.begin(),
-                              thrust::make_discard_iterator(), points_counter_per_voxel.begin(),
-                              voxel_key_equal_functor())
-            .second;
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto zip_in = thrust::make_zip_iterator(thrust::make_tuple(
+        get_point_with_sorted_index_iter, thrust::make_constant_iterator<gca::counter_t>(1)));
+    auto zip_out = thrust::make_zip_iterator(
+        thrust::make_tuple(result_points.begin(), points_counter_per_voxel.begin()));
 
-    auto new_n_points = end_iter_of_points - result_points.begin();
-    if (new_n_points != (end_iter_of_points_counter - points_counter_per_voxel.begin()))
-    {
-        return ::cudaErrorInvalidValue;
-    }
+    auto new_n_points =
+        thrust::reduce_by_key(keys.begin(), keys.end(), zip_in, keys.begin(), zip_out,
+                              voxel_key_equal_functor(), add_and_count_points_functor())
+            .first -
+        keys.begin();
 
     result_points.resize(new_n_points);
 
     thrust::transform(result_points.begin(), result_points.end(), points_counter_per_voxel.begin(),
                       result_points.begin(), compute_points_mean_functor());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
-    return ::cudaSuccess;
+    return result_points;
 }
 } // namespace gca
