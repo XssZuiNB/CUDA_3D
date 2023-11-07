@@ -5,6 +5,7 @@
 #include "geometry/type.hpp"
 #include "movement_detection/movement_detection.hpp"
 #include "util/gpu_check.hpp"
+#include "visualizer/visualizer.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
     PointCloud::Ptr cloud_0(new PointCloud);
     PointCloud::Ptr cloud_1(new PointCloud);
     pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-    pcl::visualization::CloudViewer viewer_0("viewer0");
+    // pcl::visualization::CloudViewer viewer_0("viewer0");
 
     gca::cuda_color_frame gpu_color_0(rs_cam_0.get_width(), rs_cam_0.get_height());
     gca::cuda_depth_frame gpu_depth_0(rs_cam_0.get_width(), rs_cam_0.get_height());
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
 
     auto detector = gca::movement_detection();
+    // gca::visualizer v;
 
     // test
     /*
@@ -319,7 +321,7 @@ int main(int argc, char *argv[])
             p.b = points_0[i].color.b * 255;
             cloud_0->points[i] = p;
         }
-        viewer_0.showCloud(cloud_0);
+        // viewer_0.showCloud(cloud_0);
 
         /* RANSAC Seg plane
         /
@@ -645,7 +647,7 @@ int main(int argc, char *argv[])
         */
 
         /* PCL Radius Outlier removal test */
-
+        /*
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
 
@@ -666,7 +668,7 @@ int main(int argc, char *argv[])
                   << "ms" << std::endl;
 
         std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
-
+        */
         /* Voxel Grid PCL */
         /*
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(

@@ -10,7 +10,7 @@ add_executable(
 target_compile_features(
     ${app}
     PRIVATE
-    cxx_std_14
+    cxx_std_17
 )
 
 target_include_directories(

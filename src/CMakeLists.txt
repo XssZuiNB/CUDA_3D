@@ -1,7 +1,8 @@
 enable_language(CUDA)
 
-find_package(CUDA REQUIRED)
+# find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(PCL REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -56,6 +57,12 @@ file(
     "util/*.cuh"
 )
 
+file(
+    GLOB VISUALIZER_SRC
+    "visualizer/*.cpp"
+    "visualizer/*.hpp"
+)
+
 add_library(
     gca_lib 
     SHARED
@@ -65,19 +72,21 @@ add_library(
     ${MOVEMENT_DETECTION_SRC}
     ${REGISTRATION_SRC}
     ${UTIL_SRC}
+    ${VISUALIZER_SRC}
 )
 
 target_compile_features(
     gca_lib
     PRIVATE
-    cxx_std_14
+    cxx_std_17
 )
     
 target_include_directories(
     gca_lib
     PUBLIC
-    ${OpenCV_INCLUDE_DIRS}
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+    ${OpenCV_INCLUDE_DIRS}
+    ${PCL_INCLUDE_DIRS}
 )
     
 target_link_libraries(
@@ -85,6 +94,7 @@ target_link_libraries(
     ${CUDA_LIBRARIES}
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
+    ${PCL_LIBRARIES}
     OpenMP::OpenMP_CXX
     Eigen3::Eigen
 )
