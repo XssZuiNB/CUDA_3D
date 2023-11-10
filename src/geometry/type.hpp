@@ -47,6 +47,11 @@ struct color3
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     }
 
+    __forceinline__ __host__ __device__ float get_average() const
+    {
+        return (r + g + b) / 3;
+    }
+
     template <typename T> __forceinline__ __host__ __device__ color3 operator/(T n) const
     {
         auto _n = (float)n;

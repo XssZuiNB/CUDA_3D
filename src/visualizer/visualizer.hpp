@@ -15,30 +15,36 @@
 
 namespace gca
 {
-/*
-template <size_t N, typename T, typename Seq> struct MakeTupleImpl;
-
-template <size_t N, typename T, size_t... Is> struct MakeTupleImpl<N, T, std::index_sequence<Is...>>
+template <typename T, size_t N, typename Tuple> struct make_tuple_impl
 {
-using type = std::tuple<decltype(T(Is)))...>;
 };
 
-template <size_t N, typename T>
-auto make_tuple_of_size() -> typename MakeTupleImpl<N, T, std::make_index_sequence<N>>::type
+template <typename T, size_t N, typename... O> struct make_tuple_impl<T, N, std::tuple<O...>>
 {
-return typename MakeTupleImpl<N, T, std::make_index_sequence<N>>::type();
-}
-*/
+    using type = typename make_tuple_impl<T, N - 1, std::tuple<T, O...>>::type;
+};
+
+template <typename T, typename... O> struct make_tuple_impl<T, 0, std::tuple<O...>>
+{
+    using type = std::tuple<O...>;
+};
+
+template <typename T, size_t N> struct tuple_with_size
+{
+    using type = typename make_tuple_impl<T, N, std::tuple<>>::type;
+};
+
 class visualizer
 {
 public:
     visualizer();
-    visualizer(std::shared_ptr<gca::point_cloud> pc);
 
     visualizer(const visualizer &other) = delete;
     visualizer &operator==(const visualizer &) = delete;
 
     void update(std::shared_ptr<gca::point_cloud> new_pc);
+
+    void close();
 
     ~visualizer();
 
@@ -50,13 +56,12 @@ private:
 
 private:
     std::queue<std::shared_ptr<gca::point_cloud>> m_data_queue;
+    static constexpr size_t max_queue_size = 5;
     mutable std::mutex m_mutex;
     std::condition_variable m_cond_var;
-
-    std::shared_ptr<pcl::visualization::PCLVisualizer> m_viewer;
-    bool m_is_first_frame;
     std::thread m_thread;
 
+    std::shared_ptr<pcl::visualization::PCLVisualizer> m_viewer;
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr m_pcl_cloud;
 };
 } // namespace gca

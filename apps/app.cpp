@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
 
     auto detector = gca::movement_detection();
-    // gca::visualizer v;
+    gca::visualizer v;
 
     // test
     /*
@@ -213,18 +213,18 @@ int main(int argc, char *argv[])
 
         auto pc_remove_noise_0 = pc_0->radius_outlier_removal(0.02f, 6);
 
-        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.01f);
-        auto start = std::chrono::steady_clock::now();
+        auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
+
         auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
-        auto end = std::chrono::steady_clock::now();
+
         std::cout << "CLusters: " << cluster.second << std::endl;
 
         pc_downsampling_0->estimate_normals(0.04f);
 
         detector.update_point_cloud(pc_downsampling_0);
-
+        auto start = std::chrono::steady_clock::now();
         auto moving_pc = detector.moving_objects_detection();
-
+        auto end = std::chrono::steady_clock::now();
         std::cout << "Total cuda time in microseconds: "
                   << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
                   << "us" << std::endl;
@@ -306,7 +306,9 @@ int main(int argc, char *argv[])
             viewer_0.showCloud(cloud_1);
         }
         */
+        v.update(pc_downsampling_0);
 
+        /*
         auto points_0 = pc_downsampling_0->download();
         auto number_of_points = points_0.size();
         cloud_0->points.resize(number_of_points);
@@ -321,6 +323,7 @@ int main(int argc, char *argv[])
             p.b = points_0[i].color.b * 255;
             cloud_0->points[i] = p;
         }
+        */
         // viewer_0.showCloud(cloud_0);
 
         /* RANSAC Seg plane

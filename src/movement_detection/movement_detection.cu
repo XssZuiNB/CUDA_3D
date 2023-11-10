@@ -66,9 +66,15 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
 
     // computer color gradient of tgt point cloud.
     auto color_gradient_tgt = thrust::device_vector<float3>(pts_tgt.size());
+
+    auto start = std::chrono::steady_clock::now();
     auto err = cuda_compute_color_gradient(color_gradient_tgt, pts_tgt, normals_tgt,
                                            min_bound_tgt_with_padding, max_bound_tgt_with_padding,
                                            m_compute_tgt_color_gradient_radius);
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "Idx time: "
+              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
+              << std::endl;
     if (err != ::cudaSuccess)
         return nullptr;
 
@@ -76,8 +82,13 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
 
     auto output = std::make_shared<gca::point_cloud>(*m_pc_ptr_src);
     thrust::device_vector<float> result_rg_plus_rc(pts_src.size());
+    start = std::chrono::steady_clock::now();
     err = cuda_compute_residual_color_icp(result_rg_plus_rc, output->m_points, pts_tgt, normals_tgt,
                                           color_gradient_tgt, nn_src_tgt, m_color_icp_lambda);
+    end = std::chrono::steady_clock::now();
+    std::cout << "zip time: "
+              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
+              << std::endl;
     if (err != ::cudaSuccess)
         return nullptr;
 

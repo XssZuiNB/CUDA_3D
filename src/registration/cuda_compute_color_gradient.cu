@@ -49,7 +49,6 @@ struct compute_color_gradient_functor
         AtA.set_zero();
         Atb.set_zero();
 
-        auto n_ = 0;
         for (gca::index_t i = 0; i < knn; ++i)
         {
             const int nn_idx = __ldg(&m_all_neighbors_ptr[begin_idx + i]);
@@ -66,7 +65,6 @@ struct compute_color_gradient_functor
             const mat3x1 vtmp(p_proj_coordinates - pts.coordinates);
             AtA += vtmp * vtmp.get_transpose();
             Atb += (nn_intensity - intensity) * vtmp;
-            ++n_;
         }
         // orthogonal constraint
         const mat3x1 n_mat(normal);

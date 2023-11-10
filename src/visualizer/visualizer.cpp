@@ -4,7 +4,7 @@ namespace gca
 {
 visualizer::visualizer()
     : m_viewer(std::make_shared<pcl::visualization::PCLVisualizer>("point cloud Viewer"))
-    , m_is_first_frame(true)
+    , m_pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>)
 {
 }
 
@@ -16,6 +16,13 @@ bool visualizer::empty()
 
 void visualizer::threadsafe_push(std::shared_ptr<gca::point_cloud> new_pc)
 {
+    if (m_data_queue.size() > max_queue_size)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data_queue.pop();
+        m_data_queue.push(new_pc);
+    }
+    else
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data_queue.push(new_pc);
@@ -30,6 +37,19 @@ void visualizer::threadsafe_pop(std::shared_ptr<gca::point_cloud> &pc)
     m_cond_var.wait(lock, [this] { return !m_data_queue.empty(); });
     pc = m_data_queue.front();
     m_data_queue.pop();
+}
+
+void visualizer::update(std::shared_ptr<gca::point_cloud> new_pc)
+{
+    static std::once_flag thread_created_flag;
+    std::call_once(thread_created_flag, [this] {
+        this->m_thread = std::thread(&gca::visualizer::visualizer_loop, this);
+    });
+
+    if (m_viewer->wasStopped())
+        return;
+
+    threadsafe_push(new_pc);
 }
 
 void visualizer::visualizer_loop()
@@ -55,10 +75,9 @@ void visualizer::visualizer_loop()
             m_pcl_cloud->points[i] = p;
         }
 
-        if (m_is_first_frame)
+        if (!m_viewer->contains("cloud"))
         {
             m_viewer->addPointCloud(m_pcl_cloud, "cloud");
-            m_is_first_frame = false;
         }
         else
         {
@@ -67,6 +86,22 @@ void visualizer::visualizer_loop()
 
         m_viewer->spinOnce();
     }
+}
+
+void visualizer::close()
+{
+    m_viewer->removeAllPointClouds();
+    m_viewer->close();
+
+    if (m_thread.joinable())
+    {
+        m_thread.join();
+    }
+}
+
+visualizer::~visualizer()
+{
+    close();
 }
 
 } // namespace gca

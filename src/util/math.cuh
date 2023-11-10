@@ -1950,8 +1950,8 @@ public:
     }
 
     template <unsigned int N_other, unsigned int M_other>
-    __forceinline__ __device__ __host__ void setBlock(matNxM<N_other, M_other> &input,
-                                                      unsigned int x_start, unsigned int y_start)
+    __forceinline__ __device__ __host__ void set_block(matNxM<N_other, M_other> &input,
+                                                       unsigned int x_start, unsigned int y_start)
     {
         cudaAssert(x_start + N_other <= N && y_start + M_other <= M);
 
@@ -2183,12 +2183,27 @@ template <> __forceinline__ __device__ __host__ matNxM<2, 1>::operator float2()
     return make_float2(entries[0], entries[1]);
 }
 
+template <> __forceinline__ __device__ __host__ matNxM<1, 2>::operator float2()
+{
+    return make_float2(entries[0], entries[1]);
+}
+
 template <> __forceinline__ __device__ __host__ matNxM<3, 1>::operator float3()
 {
     return make_float3(entries[0], entries[1], entries[2]);
 }
 
+template <> __forceinline__ __device__ __host__ matNxM<1, 3>::operator float3()
+{
+    return make_float3(entries[0], entries[1], entries[2]);
+}
+
 template <> __forceinline__ __device__ __host__ matNxM<4, 1>::operator float4()
+{
+    return make_float4(entries[0], entries[1], entries[2], entries[3]);
+}
+
+template <> __forceinline__ __device__ __host__ matNxM<1, 4>::operator float4()
 {
     return make_float4(entries[0], entries[1], entries[2], entries[3]);
 }
