@@ -79,9 +79,9 @@ struct compute_residual_functor : compute_residual_pair_functor
     }
 };
 
-struct compute_rmse_functor
+struct compute_RMSE_functor
 {
-    compute_rmse_functor(const thrust::device_vector<gca::point_t> &tgt_points,
+    compute_RMSE_functor(const thrust::device_vector<gca::point_t> &tgt_points,
                          const thrust::device_vector<float3> &tgt_normals,
                          const thrust::device_vector<float3> &tgt_color_gradient,
                          const float lambda)
@@ -131,12 +131,12 @@ struct compute_rmse_functor
     }
 };
 
-struct compute_JTJ_and_JTr_functor
+struct compute_JTJ_JTr_and_r_functor
 {
-    compute_JTJ_and_JTr_functor(const thrust::device_vector<gca::point_t> &tgt_points,
-                                const thrust::device_vector<float3> &tgt_normals,
-                                const thrust::device_vector<float3> &tgt_color_gradient,
-                                const float lambda)
+    compute_JTJ_JTr_and_r_functor(const thrust::device_vector<gca::point_t> &tgt_points,
+                                  const thrust::device_vector<float3> &tgt_normals,
+                                  const thrust::device_vector<float3> &tgt_color_gradient,
+                                  const float lambda)
         : m_tgt_points_ptr(thrust::raw_pointer_cast(tgt_points.data()))
         , m_tgt_normals_ptr(thrust::raw_pointer_cast(tgt_normals.data()))
         , m_tgt_color_gradient_ptr(thrust::raw_pointer_cast(tgt_color_gradient.data()))
@@ -151,12 +151,29 @@ struct compute_JTJ_and_JTr_functor
     const float m_sqrt_lambda_geometry;
     const float m_sqrt_lambda_color;
 
-    __forceinline__ __device__ float operator()()
+    __forceinline__ __device__ thrust::tuple<mat6x6, mat6x1, float> operator()(
+        const thrust::tuple<gca::point_t, gca::index_t> &pts_and_nn) const
     {
+        mat6x1 J_geometry;
+        mat6x1 J_color;
+        float r_geometry;
+        float r_color;
+
+        compute_jacobian_and_residual(J_geometry, J_color, r_geometry, r_color, pts_and_nn);
+
+        mat6x6 JTJ = J_geometry * J_geometry.get_transpose();
+        mat6x1 JTr = J_geometry * r_geometry;
+        float r2 = r_geometry * r_geometry; // r square
+
+        JTJ += J_color * J_color.get_transpose();
+        JTr += J_color * r_color;
+        r2 += r_color * r_color;
+
+        return thrust::make_tuple(JTJ, JTr, r2);
     }
 
 private:
-    void compute_jacobian_and_residual(
+    __forceinline__ __device__ void compute_jacobian_and_residual(
         mat6x1 &J_geometry, mat6x1 &J_color, float &r_geometry, float &r_color,
         const thrust::tuple<gca::point_t, gca::index_t> &pts_and_nn) const
     {
@@ -219,7 +236,19 @@ private:
         // get projected intensity
         auto indensity_proj = indensity_pts_tgt +
                               dot(color_gradient_tgt, (proj_coordinates - nn_pts_tgt.coordinates));
-        auto rc_weighted = m_sqrt_lambda_color * (indensity_proj - indensity_pts_src); // color
+        r_color = m_sqrt_lambda_color * (indensity_proj - indensity_pts_src); // color
+    }
+};
+
+struct add_JTJ_JTr_and_RMSE_functor
+{
+    __forceinline__ __device__ thrust::tuple<mat6x6, mat6x1, float> operator()(
+        const thrust::tuple<mat6x6, mat6x1, float> &fir,
+        const thrust::tuple<mat6x6, mat6x1, float> &sec) const
+    {
+        return thrust::make_tuple(thrust::get<0>(fir) + thrust::get<0>(sec),
+                                  thrust::get<1>(fir) + thrust::get<1>(sec),
+                                  thrust::get<2>(fir) + thrust::get<2>(sec));
     }
 };
 
@@ -307,7 +336,7 @@ private:
     return ::cudaSuccess;
 }
 
-::cudaError_t cuda_compute_rmse_color_icp(float &result_rmse,
+::cudaError_t cuda_compute_RMSE_color_icp(float &result_rmse,
                                           const thrust::device_vector<gca::point_t> &src_points,
                                           const thrust::device_vector<gca::point_t> &tgt_points,
                                           const thrust::device_vector<float3> &tgt_normals,
@@ -339,14 +368,14 @@ private:
 
     result_rmse = thrust::transform_reduce(
         zipped_begin, zipped_end,
-        compute_rmse_functor(tgt_points, tgt_normals, tgt_color_gradient, lambda), 0.0f,
+        compute_RMSE_functor(tgt_points, tgt_normals, tgt_color_gradient, lambda), 0.0f,
         thrust::plus<float>());
 
     return ::cudaSuccess;
 }
 
 ::cudaError_t cuda_build_gauss_newton_color_icp(
-    mat6x6 &JTJ, mat6x1 &JTr, const thrust::device_vector<gca::point_t> &src_points,
+    mat6x6 &JTJ, mat6x1 &JTr, float &RMSE, const thrust::device_vector<gca::point_t> &src_points,
     const thrust::device_vector<gca::point_t> &tgt_points,
     const thrust::device_vector<float3> &tgt_normals,
     const thrust::device_vector<float3> &tgt_color_gradient,
@@ -367,5 +396,25 @@ private:
     {
         return ::cudaErrorInvalidValue;
     }
+
+    // for init
+    mat6x6 JTJ_;
+    JTJ_.set_zero();
+    mat6x1 JTr_;
+    JTr.set_zero();
+    float RMSE_ = 0;
+
+    auto zipped_begin =
+        thrust::make_zip_iterator(thrust::make_tuple(src_points.begin(), nn_src_tgt.begin()));
+
+    auto zipped_end =
+        thrust::make_zip_iterator(thrust::make_tuple(src_points.end(), nn_src_tgt.end()));
+
+    thrust::tie(JTJ, JTr, RMSE) = thrust::transform_reduce(
+        zipped_begin, zipped_end,
+        compute_JTJ_JTr_and_r_functor(tgt_points, tgt_normals, tgt_color_gradient, lambda),
+        thrust::make_tuple(JTJ_, JTr_, RMSE_), add_JTJ_JTr_and_RMSE_functor());
+
+    return ::cudaSuccess;
 }
 } // namespace gca

@@ -114,16 +114,24 @@ struct transform_point_functor
     transform_point_functor(const mat4x4 &trans_mat)
     {
         trans_mat.get_block<3, 3>(0, 0, m_rotation_mat);
-        trans_mat.get_block<3, 1>(0, 3, m_translation_mat);
+        trans_mat.get_block<3, 1>(0, 3, m_translation_vec);
     }
 
     mat3x3 m_rotation_mat;
-    mat3x1 m_translation_mat;
+    mat3x1 m_translation_vec;
 
     __forceinline__ __device__ void operator()(gca::point_t &p) const
     {
         mat3x1 coordinate_mat(p.coordinates);
-        p.coordinates = m_rotation_mat * coordinate_mat + m_translation_mat;
+        p.coordinates = m_rotation_mat * coordinate_mat + m_translation_vec;
+    }
+
+    __forceinline__ __device__ gca::point_t operator()(const gca::point_t &p) const
+    {
+        gca::point_t p_ = p;
+        mat3x1 coordinate_mat(p.coordinates);
+        p_.coordinates = m_rotation_mat * coordinate_mat + m_translation_vec;
+        return p_;
     }
 };
 
@@ -140,6 +148,14 @@ struct transform_normal_functor
     {
         mat3x1 coordinate_mat(n);
         n = m_rotation_mat * coordinate_mat;
+    }
+
+    __forceinline__ __device__ float3 operator()(const float3 &n) const
+    {
+        mat3x1 coordinate_mat(n);
+        float3 n_(m_rotation_mat * coordinate_mat);
+
+        return n_;
     }
 };
 } // namespace gca

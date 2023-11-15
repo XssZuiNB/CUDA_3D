@@ -215,14 +215,12 @@ int main(int argc, char *argv[])
 
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
 
-        auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
-
-        std::cout << "CLusters: " << cluster.second << std::endl;
-
+        // auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
+        auto start = std::chrono::steady_clock::now();
         pc_downsampling_0->estimate_normals(0.04f);
 
         detector.update_point_cloud(pc_downsampling_0);
-        auto start = std::chrono::steady_clock::now();
+
         auto moving_pc = detector.moving_objects_detection();
         auto end = std::chrono::steady_clock::now();
         std::cout << "Total cuda time in microseconds: "

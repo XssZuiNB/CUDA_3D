@@ -6,6 +6,7 @@
 
 // Eigen
 #include "util/eigen_disable_bad_warnings.cuh"
+#include <Eigen/Core>
 #include <Eigen/Geometry>
 
 // std
@@ -19,17 +20,21 @@ namespace gca
 {
 class color_icp
 {
-
 public:
     color_icp(/* args */);
-    ~color_icp();
+
+    void set_source_point_cloud(const std::shared_ptr<gca::point_cloud> new_pc);
+    void set_target_point_cloud(const std::shared_ptr<gca::point_cloud> new_pc);
+
+        ~color_icp();
 
 private:
     void compute_target_color_gradient();
+    Eigen::Matrix4f transform_vec6f_to_mat4f(const Eigen::Matrix<float, 6, 1> &input);
 
 private:
-    std::shared_ptr<gca::point_cloud> m_source_pc;
-    std::shared_ptr<gca::point_cloud> m_target_pc;
+    const std::shared_ptr<gca::point_cloud> m_source_pc;
+    const std::shared_ptr<gca::point_cloud> m_target_pc;
     thrust::device_vector<mat3x1> m_target_pc_color_gradient;
     thrust::device_ptr<mat4x4> m_transformation_ptr;
     Eigen::Matrix4f m_transformation_eigen;

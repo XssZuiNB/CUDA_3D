@@ -5,6 +5,7 @@
 #include "movement_detection/cuda_movement_detection.cuh"
 #include "registration/cuda_color_icp_build_least_square.cuh"
 #include "registration/cuda_compute_color_gradient.cuh"
+#include "registration/eigen_solver.hpp"
 #include "util/cuda_util.cuh"
 
 #include <thrust/copy.h>
@@ -83,10 +84,20 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
     auto output = std::make_shared<gca::point_cloud>(*m_pc_ptr_src);
     thrust::device_vector<float> result_rg_plus_rc(pts_src.size());
     start = std::chrono::steady_clock::now();
+    mat6x6 JTJ;
+    mat6x1 JTr;
+    float RMSE;
+    err = cuda_build_gauss_newton_color_icp(JTJ, JTr, RMSE, output->m_points, pts_tgt, normals_tgt,
+                                            color_gradient_tgt, nn_src_tgt, m_color_icp_lambda);
+    /*
     err = cuda_compute_residual_color_icp(result_rg_plus_rc, output->m_points, pts_tgt, normals_tgt,
                                           color_gradient_tgt, nn_src_tgt, m_color_icp_lambda);
+    */
+    auto x = solve_JTJ_JTr(JTJ, JTr);
+
     end = std::chrono::steady_clock::now();
-    std::cout << "zip time: "
+    x.print_host();
+    std::cout << "gauss newton time: "
               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
               << std::endl;
     if (err != ::cudaSuccess)
