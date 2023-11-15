@@ -47,9 +47,9 @@ struct compute_voxel_key_functor
     }
 };
 
-struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bool>
+struct compare_voxel_key_functor
 {
-    __forceinline__ __device__ bool operator()(const int3 lhs, const int3 rhs) const
+    __forceinline__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
     {
         if (lhs.x != rhs.x)
             return lhs.x < rhs.x;
@@ -61,9 +61,9 @@ struct compare_voxel_key_functor : public thrust::binary_function<int3, int3, bo
     }
 };
 
-struct voxel_key_equal_functor : public thrust::binary_function<int3, int3, bool>
+struct voxel_key_equal_functor
 {
-    __forceinline__ __device__ bool operator()(const int3 lhs, const int3 rhs) const
+    __forceinline__ __device__ bool operator()(const int3 &lhs, const int3 &rhs) const
     {
         return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
     }

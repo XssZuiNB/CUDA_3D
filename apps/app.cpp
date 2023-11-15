@@ -307,7 +307,6 @@ int main(int argc, char *argv[])
         }
         */
         v.update(pc_downsampling_0);
-
         /*
         auto points_0 = pc_downsampling_0->download();
         auto number_of_points = points_0.size();
@@ -323,9 +322,8 @@ int main(int argc, char *argv[])
             p.b = points_0[i].color.b * 255;
             cloud_0->points[i] = p;
         }
+        viewer_0.showCloud(cloud_0);
         */
-        // viewer_0.showCloud(cloud_0);
-
         /* RANSAC Seg plane
         /
         start = std::chrono::steady_clock::now();
@@ -651,6 +649,21 @@ int main(int argc, char *argv[])
 
         /* PCL Radius Outlier removal test */
         /*
+        auto points_0 = pc_0->download();
+        auto number_of_points = points_0.size();
+
+        cloud_0->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_0[i].coordinates.x;
+            p.y = -points_0[i].coordinates.y;
+            p.z = -points_0[i].coordinates.z;
+            p.r = points_0[i].color.r * 255;
+            p.g = points_0[i].color.g * 255;
+            p.b = points_0[i].color.b * 255;
+            cloud_0->points[i] = p;
+        }
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
 

@@ -3,6 +3,7 @@
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+#include "util/math.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -18,6 +19,8 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
+
+/*TODO: maybe this could be optimized*/
 
 namespace gca
 {

@@ -1,11 +1,15 @@
 #include "visualizer.hpp"
 
+#include <future>
+
 namespace gca
 {
 visualizer::visualizer()
-    : m_viewer(std::make_shared<pcl::visualization::PCLVisualizer>("point cloud Viewer"))
+    : m_viewer(nullptr)
     , m_pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>)
 {
+    m_thread = std::thread(&gca::visualizer::visualizer_loop, this);
+    m_running = true;
 }
 
 bool visualizer::empty()
@@ -41,29 +45,42 @@ void visualizer::threadsafe_pop(std::shared_ptr<gca::point_cloud> &pc)
 
 void visualizer::update(std::shared_ptr<gca::point_cloud> new_pc)
 {
-    static std::once_flag thread_created_flag;
-    std::call_once(thread_created_flag, [this] {
-        this->m_thread = std::thread(&gca::visualizer::visualizer_loop, this);
-    });
-
-    if (m_viewer->wasStopped())
-        return;
-
-    threadsafe_push(new_pc);
+    if (m_running)
+    {
+        threadsafe_push(new_pc);
+    }
 }
 
 void visualizer::visualizer_loop()
 {
-    while (!m_viewer->wasStopped())
+    using namespace std::chrono_literals;
+
+    auto viewer = std::make_shared<pcl::visualization::PCLVisualizer>("point cloud Viewer");
+
+    while (m_running)
     {
         std::shared_ptr<gca::point_cloud> pc_device;
         threadsafe_pop(pc_device);
 
         auto pc_host = pc_device->download();
         auto number_of_points = pc_host.size();
-        m_pcl_cloud->points.resize(number_of_points);
+        pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pcl_pc(new pcl::PointCloud<pcl::PointXYZRGBA>);
+        pcl_pc->points.resize(number_of_points);
 
-        for (size_t i = 0; i < number_of_points; i++)
+        auto f = std::async([=] {
+            for (size_t i = 0; i < number_of_points / 2; i++)
+            {
+                pcl::PointXYZRGBA p;
+                p.x = pc_host[i].coordinates.x;
+                p.y = -pc_host[i].coordinates.y;
+                p.z = -pc_host[i].coordinates.z;
+                p.r = pc_host[i].color.r * 255;
+                p.g = pc_host[i].color.g * 255;
+                p.b = pc_host[i].color.b * 255;
+                pcl_pc->points[i] = p;
+            }
+        });
+        for (size_t i = number_of_points / 2; i < number_of_points; i++)
         {
             pcl::PointXYZRGBA p;
             p.x = pc_host[i].coordinates.x;
@@ -72,26 +89,31 @@ void visualizer::visualizer_loop()
             p.r = pc_host[i].color.r * 255;
             p.g = pc_host[i].color.g * 255;
             p.b = pc_host[i].color.b * 255;
-            m_pcl_cloud->points[i] = p;
+            pcl_pc->points[i] = p;
         }
+        f.get();
 
-        if (!m_viewer->contains("cloud"))
+        if (!viewer->contains("cloud"))
         {
-            m_viewer->addPointCloud(m_pcl_cloud, "cloud");
+            viewer->addPointCloud(pcl_pc, "cloud");
         }
         else
         {
-            m_viewer->updatePointCloud(m_pcl_cloud, "cloud");
+            viewer->updatePointCloud(pcl_pc, "cloud");
         }
 
-        m_viewer->spinOnce();
+        viewer->spinOnce();
+
+        std::this_thread::sleep_for(5ms);
     }
+
+    viewer->removeAllPointClouds();
+    viewer->close();
 }
 
 void visualizer::close()
 {
-    m_viewer->removeAllPointClouds();
-    m_viewer->close();
+    m_running = false;
 
     if (m_thread.joinable())
     {

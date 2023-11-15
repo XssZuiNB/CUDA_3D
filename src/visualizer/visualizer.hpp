@@ -2,13 +2,13 @@
 
 #include "geometry/point_cloud.hpp"
 
+#include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
 #include <tuple>
-#include <utility> // for std::index_sequence and std::make_index_sequence
 
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>
@@ -60,6 +60,7 @@ private:
     mutable std::mutex m_mutex;
     std::condition_variable m_cond_var;
     std::thread m_thread;
+    std::atomic<bool> m_running;
 
     std::shared_ptr<pcl::visualization::PCLVisualizer> m_viewer;
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr m_pcl_cloud;
