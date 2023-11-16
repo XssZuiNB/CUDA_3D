@@ -1768,10 +1768,8 @@ public:
 
     __forceinline__ __host__ void print_host() const
     {
-        __CONDITIONAL_UNROLL__
         for (unsigned int i = 0; i < N; i++)
         {
-            __CONDITIONAL_UNROLL__
             for (unsigned int j = 0; j < M; j++)
             {
                 printf("%f ", (*this)(i, j));

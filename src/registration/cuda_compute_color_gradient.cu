@@ -42,7 +42,7 @@ struct compute_color_gradient_functor
             return make_float3(0.0f, 0.0f, 0.0f);
         }
 
-        float intensity = pts.color.to_intensity();
+        float intensity = pts.color.get_average();
 
         mat3x3 AtA;
         mat3x1 Atb;
@@ -60,7 +60,7 @@ struct compute_color_gradient_functor
             const auto p_proj_coordinates =
                 nn_pts.coordinates - dot(nn_pts.coordinates - pts.coordinates, normal) * normal;
 
-            float nn_intensity = nn_pts.color.to_intensity();
+            float nn_intensity = nn_pts.color.get_average();
 
             const mat3x1 vtmp(p_proj_coordinates - pts.coordinates);
             AtA += vtmp * vtmp.get_transpose();

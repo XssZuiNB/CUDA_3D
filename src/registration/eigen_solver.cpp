@@ -1,5 +1,6 @@
 #include "eigen_solver.hpp"
 
+#include "util/eigen_disable_bad_warnings.cuh"
 #include "util/math.cuh"
 
 #include <Eigen/Core>

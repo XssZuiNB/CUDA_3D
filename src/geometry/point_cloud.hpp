@@ -53,6 +53,15 @@ public:
         const float cluster_tolerance, const gca::counter_t min_cluster_size,
         const gca::counter_t max_cluster_size);
 
+    auto search_radius(float radius)
+        -> thrust::pair<thrust::device_vector<gca::index_t>,
+                        thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>>;
+
+    static auto search_radius(gca::point_cloud &query_pc, gca::point_cloud &reference_pc,
+                              float radius)
+        -> thrust::pair<thrust::device_vector<gca::index_t>,
+                        thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>>;
+
     static std::shared_ptr<point_cloud> create_from_rgbd(const gca::cuda_depth_frame &depth,
                                                          const gca::cuda_color_frame &color,
                                                          const gca::cuda_camera_param &param,
@@ -62,11 +71,6 @@ public:
     static thrust::device_vector<gca::index_t> nn_search(gca::point_cloud &query_pc,
                                                          gca::point_cloud &reference_pc,
                                                          float radius);
-
-    static auto search_radius(gca::point_cloud &query_pc, gca::point_cloud &reference_pc,
-                              float radius)
-        -> thrust::pair<thrust::device_vector<gca::index_t>,
-                        thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>>;
 
     static void nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
                           gca::point_cloud &reference_pc, float radius);

@@ -48,8 +48,8 @@ struct compute_residual_pair_functor
         auto rg_ = dot((pts_src.coordinates - nn_pts_tgt.coordinates), normal);
         auto rg_weighted = m_sqrt_lambda_geometry * rg_; // geometric
 
-        auto indensity_pts_src = pts_src.color.to_intensity();
-        auto indensity_pts_tgt = nn_pts_tgt.color.to_intensity();
+        auto indensity_pts_src = pts_src.color.get_average();
+        auto indensity_pts_tgt = nn_pts_tgt.color.get_average();
         // project src point onto the tangent plane of taget point
         auto proj_coordinates = pts_src.coordinates - rg_ * normal;
         // get projected intensity
@@ -117,8 +117,8 @@ struct compute_RMSE_functor
         auto rg_ = dot((pts_src.coordinates - nn_pts_tgt.coordinates), normal);
         auto rg_square_weighted = m_lambda_geometry * rg_ * rg_;
 
-        auto indensity_pts_src = pts_src.color.to_intensity();
-        auto indensity_pts_tgt = nn_pts_tgt.color.to_intensity();
+        auto indensity_pts_src = pts_src.color.get_average();
+        auto indensity_pts_tgt = nn_pts_tgt.color.get_average();
         // project src point onto the tangent plane of taget point
         auto proj_coordinates = pts_src.coordinates - rg_ * normal;
         // get projected intensity
@@ -224,13 +224,30 @@ private:
         float3 dc_x_df(color_gradient_tgt_as_mat.get_transpose() * df_div_ds);
 
         // derivation of the formula J_s(xi) see Masterthesis von Shengsi Xu
+        /* J_s(xi) = | 0   z  -y   1   0   0 |
+                     |-z   0   x   0   1   0 |
+                     | y  -x   0   0   0   1 |
+                     | 0   0   0   0   0   0 |
+
+           J_color_fir = d_pT * (I - n * nT) * | 0   z  -y |
+                                               |-z   0   x |
+                                               | y  -x   0 |
+                       = | 0   -z  y | * (d_pT * (I - n * nT))T
+                         | z   0  -x |
+                         |-y   x   0 |
+                       = p.coordinates X (d_pT * (I - n * nT))
+
+           J_color_sec = d_pT * (I - n * nT) * | 1   0   0 | = d_pT * (I - n * nT)
+                                               | 0   1   0 |
+                                               | 0   0   1 |
+        */
         mat3x1 J_color_fir(m_sqrt_lambda_color * cross(pts_src.coordinates, dc_x_df));
         mat3x1 J_color_sec(m_sqrt_lambda_color * dc_x_df);
         J_color.set_block<3, 1>(J_color_fir, 0, 0);
         J_color.set_block<3, 1>(J_color_sec, 0, 0);
         // residual
-        auto indensity_pts_src = pts_src.color.to_intensity();
-        auto indensity_pts_tgt = nn_pts_tgt.color.to_intensity();
+        auto indensity_pts_src = pts_src.color.get_average();
+        auto indensity_pts_tgt = nn_pts_tgt.color.get_average();
         // project src point onto the tangent plane of taget point
         auto proj_coordinates = pts_src.coordinates - r_geometry_ * normal;
         // get projected intensity
@@ -401,7 +418,7 @@ struct add_JTJ_JTr_and_RMSE_functor
     mat6x6 JTJ_;
     JTJ_.set_zero();
     mat6x1 JTr_;
-    JTr.set_zero();
+    JTr_.set_zero();
     float RMSE_ = 0;
 
     auto zipped_begin =

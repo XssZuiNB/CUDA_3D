@@ -30,8 +30,8 @@ void movement_detection::set_target_point_cloud(std::shared_ptr<gca::point_cloud
 }
 void movement_detection::update_point_cloud(std::shared_ptr<gca::point_cloud> pc_new)
 {
-    m_pc_ptr_tgt = m_pc_ptr_src;
-    m_pc_ptr_src = pc_new;
+    m_pc_ptr_src = m_pc_ptr_tgt;
+    m_pc_ptr_tgt = pc_new;
 }
 
 std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
