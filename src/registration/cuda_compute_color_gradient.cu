@@ -49,6 +49,10 @@ struct compute_color_gradient_functor
         AtA.set_zero();
         Atb.set_zero();
 
+        /* equation 10 least square L(d_p)' = 0 => (f(p') - p)T * d_p = C(p') - C(P)
+         * -> Ax = b => ATA * x = ATb
+         * => (f(p') - p) * (f(p') - p)T * d_p = (f(p') - p) * (C(p') - C(P))
+         * => d_p = ((f(p') - p) * (f(p') - p)T) ^ -1 * ((f(p') - p) * (C(p') - C(P))) */
         for (gca::index_t i = 0; i < knn; ++i)
         {
             const int nn_idx = __ldg(&m_all_neighbors_ptr[begin_idx + i]);
@@ -62,19 +66,24 @@ struct compute_color_gradient_functor
 
             float nn_intensity = nn_pts.color.to_intensity();
 
-            const mat3x1 vec_pp_p(p_proj_coordinates - pts.coordinates);
+            mat3x1 vec_pp_p(p_proj_coordinates - pts.coordinates);
             AtA += vec_pp_p * vec_pp_p.get_transpose();
             Atb += vec_pp_p * (nn_intensity - intensity);
         }
-        // orthogonal constraint
-        const mat3x1 n_mat(normal);
 
+        const mat3x1 n_mat(normal);
+        // orthogonal constraint  (after equation 10 in paper)
+        // Goal is to give an addition term d_pT * n_p = 0 for least square to optimize
+        // Because this color gradient should be on the tangent plane of the point
+        // This term makes convergence faster!
         AtA += (knn - 1) * (knn - 1) * n_mat * n_mat.get_transpose();
-        AtA(0, 0) += 1.0e-6;
-        AtA(1, 1) += 1.0e-6;
-        AtA(2, 2) += 1.0e-6;
+        // Atb += (knn - 1) * n_mat; // This makes slower convergence...
+        AtA(0, 0) += 1.0e-6f;
+        AtA(1, 1) += 1.0e-6f;
+        AtA(2, 2) += 1.0e-6f;
 
         const auto x(AtA.get_inverse() * Atb);
+
         return make_float3(x(0), x(1), x(2));
     }
 };

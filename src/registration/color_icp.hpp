@@ -34,7 +34,7 @@ private:
     // convergence threshold
     // theta = arccos(0.5 * (r_11 + r_22 + r_33 - 1)) from rotation matrix
     // if theta -> 0 => cos(theta) -> 1
-    static constexpr float m_color_icp_lambda = 0.96f;              // 0.968 from paper
+    static constexpr float m_color_icp_lambda = 0.95f;              // 0.968 from paper
     static constexpr float m_translations_thres_square = 0.000001f; // square number!
     static constexpr float m_rotation_thres = 1.0f - m_translations_thres_square;
     size_t m_max_iter;

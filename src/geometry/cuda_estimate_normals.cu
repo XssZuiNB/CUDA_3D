@@ -191,7 +191,8 @@ struct align_normal_direction_functor
                           cumulants_sum.end(), pair_neighbors_begin_idx_and_count.end())),
                       result_normals.begin(), compute_normal_functor());
 
-    /* This function could be used but now its not needed.
+    // This function could be used but now its not needed.
+    /*
         thrust::for_each(result_normals.begin(), result_normals.end(),
                          align_normal_direction_functor());
     */

@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     color_icp_2.align();
     */
 
-    /* for this example best parameters, needs only 17ms to be perfect incl. dowm_sampling and
+    /* for this example best parameters, needs only 15ms to be perfect incl. dowm_sampling and
      * normal estimation */
     auto start = std::chrono::steady_clock::now();
 
