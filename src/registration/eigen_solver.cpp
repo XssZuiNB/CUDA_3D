@@ -28,6 +28,8 @@ namespace gca
 {
 mat4x4 solve_JTJ_JTr(const mat6x6 &JTJ, const mat6x1 &JTr)
 {
+    // JTJ is Symmetric Matrix. Therefore, enenthough Eigen is column-major and mine is Row-major,
+    // it can also work.
     Eigen::Matrix6f JTJ_(JTJ.ptr());
     Eigen::Vector6f JTr_(JTr.ptr());
 

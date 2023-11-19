@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/eigen_disable_bad_warnings.cuh"
 #include "util/math.cuh"
 
 namespace gca

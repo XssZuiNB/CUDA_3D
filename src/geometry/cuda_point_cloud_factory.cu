@@ -254,9 +254,9 @@ __global__ static void __kernel_make_pointcloud_Z16_BGR8(
         p.coordinates.z = depth_xyz[2];
 
         const int color_index = 3 * (target_y * width + target_x);
-        p.color.b = float(__ldg(&color_frame_data[color_index + 0])) / 255;
-        p.color.g = float(__ldg(&color_frame_data[color_index + 1])) / 255;
-        p.color.r = float(__ldg(&color_frame_data[color_index + 2])) / 255;
+        p.color.b = float(__ldg(&color_frame_data[color_index + 0])) / 255.0f;
+        p.color.g = float(__ldg(&color_frame_data[color_index + 1])) / 255.0f;
+        p.color.r = float(__ldg(&color_frame_data[color_index + 2])) / 255.0f;
 
         p.property = gca::point_property::inactive;
 

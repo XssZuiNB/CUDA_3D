@@ -44,7 +44,7 @@ struct color3
 
     __forceinline__ __host__ __device__ float to_intensity() const
     {
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return 0.2126f * r + 0.7152f * g + 0.0722f * b;
     }
 
     __forceinline__ __host__ __device__ float get_average() const

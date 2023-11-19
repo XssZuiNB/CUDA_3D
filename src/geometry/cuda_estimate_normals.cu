@@ -89,7 +89,7 @@ struct compute_normal_functor
         auto count = thrust::get<1>(tuple).second;
         if (count < 3)
         {
-            return make_float3(0.0f, 0.0f, 0.0f);
+            return make_float3(0.0f, 0.0f, 1.0f);
         }
 
         auto cum = thrust::get<0>(tuple);
@@ -124,8 +124,30 @@ struct compute_normal_functor
         else
             normal = eigen_pair_2.second;
 
-        return (norm3df(normal.x, normal.y, normal.z) >= 0.0) ? normal
-                                                              : make_float3(0.0f, 0.0f, 0.0f);
+        return (norm3df(normal.x, normal.y, normal.z) > 0.0f) ? normal
+                                                              : make_float3(0.0f, 0.0f, 1.0f);
+    }
+};
+
+struct align_normal_direction_functor
+{
+    align_normal_direction_functor()
+        : m_orientation_reference(make_float3(0.0f, 0.0f, -1.0f))
+    {
+    }
+
+    float3 m_orientation_reference;
+
+    __device__ void operator()(float3 &normal) const
+    {
+        if (norm3df(normal.x, normal.y, normal.z) == 0.0f)
+        {
+            normal = make_float3(0.0f, 0.0f, 1.0f);
+        }
+        else if (dot(normal, m_orientation_reference) < 0.0f)
+        {
+            normal *= -1.0f;
+        }
     }
 };
 
@@ -169,6 +191,10 @@ struct compute_normal_functor
                           cumulants_sum.end(), pair_neighbors_begin_idx_and_count.end())),
                       result_normals.begin(), compute_normal_functor());
 
+    /* This function could be used but now its not needed.
+        thrust::for_each(result_normals.begin(), result_normals.end(),
+                         align_normal_direction_functor());
+    */
     return ::cudaSuccess;
 }
 } // namespace gca

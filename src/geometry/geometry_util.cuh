@@ -125,14 +125,6 @@ struct transform_point_functor
         mat3x1 coordinate_mat(p.coordinates);
         p.coordinates = m_rotation_mat * coordinate_mat + m_translation_vec;
     }
-
-    __forceinline__ __device__ gca::point_t operator()(const gca::point_t &p) const
-    {
-        gca::point_t p_ = p;
-        mat3x1 coordinate_mat(p.coordinates);
-        p_.coordinates = m_rotation_mat * coordinate_mat + m_translation_vec;
-        return p_;
-    }
 };
 
 struct transform_normal_functor
@@ -149,13 +141,17 @@ struct transform_normal_functor
         mat3x1 coordinate_mat(n);
         n = m_rotation_mat * coordinate_mat;
     }
-
-    __forceinline__ __device__ float3 operator()(const float3 &n) const
-    {
-        mat3x1 coordinate_mat(n);
-        float3 n_(m_rotation_mat * coordinate_mat);
-
-        return n_;
-    }
 };
+
+__forceinline__ void cuda_transform_point(thrust::device_vector<gca::point_t> &src,
+                                          const mat4x4 &trans_matrix)
+{
+    thrust::for_each(src.begin(), src.end(), transform_point_functor(trans_matrix));
+}
+
+__forceinline__ void cuda_transform_normals(thrust::device_vector<float3> &src,
+                                            const mat4x4 &trans_matrix)
+{
+    thrust::for_each(src.begin(), src.end(), transform_normal_functor(trans_matrix));
+}
 } // namespace gca

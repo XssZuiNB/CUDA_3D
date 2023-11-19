@@ -86,13 +86,18 @@ __host__ __device__ __forceinline__ float3 cross(const float3 &a, const float3 &
 
 __host__ __device__ __forceinline__ float max_coeff(const float3 &a)
 {
-    return fmaxf(fmaxf(a.x, a.y), a.z);
+    return fmax(fmax(a.x, a.y), a.z);
 }
 
 __host__ __device__ __forceinline__ float max_coeff(const float3 a, int &idx)
 {
-    idx = (a.x > fmaxf(a.y, a.z)) * 0 + (a.y > fmaxf(a.x, a.z)) * 1 + (a.z > fmaxf(a.x, a.y)) * 2;
-    return *((float *)(&a) + idx);
+    idx = (a.x > fmax(a.y, a.z)) * 0 + (a.y > fmax(a.x, a.z)) * 1 + (a.z > fmax(a.x, a.y)) * 2;
+    if (idx == 0)
+        return a.x;
+    else if (idx == 1)
+        return a.y;
+    else
+        return a.z;
 }
 
 __host__ __device__ __forceinline__ float3 operator/(const float3 &a, float b)

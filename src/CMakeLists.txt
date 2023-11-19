@@ -1,6 +1,6 @@
 enable_language(CUDA)
 
-# find_package(CUDA REQUIRED)
+find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(OpenMP REQUIRED)

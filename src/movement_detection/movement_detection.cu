@@ -87,8 +87,9 @@ std::shared_ptr<gca::point_cloud> movement_detection::moving_objects_detection()
     mat6x6 JTJ;
     mat6x1 JTr;
     float RMSE;
-    err = cuda_build_gauss_newton_color_icp(JTJ, JTr, RMSE, output->m_points, pts_tgt, normals_tgt,
-                                            color_gradient_tgt, nn_src_tgt, m_color_icp_lambda);
+    err = cuda_build_gauss_newton_color_icp(JTJ, JTr, RMSE, output->get_points(), pts_tgt,
+                                            normals_tgt, color_gradient_tgt, nn_src_tgt,
+                                            m_color_icp_lambda);
     /*
     err = cuda_compute_residual_color_icp(result_rg_plus_rc, output->m_points, pts_tgt, normals_tgt,
                                           color_gradient_tgt, nn_src_tgt, m_color_icp_lambda);

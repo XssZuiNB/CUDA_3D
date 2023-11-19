@@ -178,8 +178,6 @@ struct nn_search_functor
 
                     auto start_index =
                         __ldg(&(m_grid_cells_R_ptr[idx_neighbor_grid_cell].start_index));
-                    if (start_index == -1)
-                        continue;
 
                     for (auto offset = 0; offset < n_points; offset++)
                     {
