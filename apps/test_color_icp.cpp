@@ -66,6 +66,16 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    auto viewer = std::make_shared<pcl::visualization::PCLVisualizer>("point cloud Viewer");
+    viewer->addPointCloud(src, "src");
+    viewer->addPointCloud(tgt, "tgt");
+
+    while (!viewer->wasStopped())
+    {
+        viewer->spinOnce();
+        pcl_sleep(0.01);
+    }
+
     auto src_device = gca::point_cloud::create_from_pcl(*src);
     auto tgt_device = gca::point_cloud::create_from_pcl(*tgt);
 
@@ -146,13 +156,13 @@ int main(int argc, char *argv[])
     }
     f.get();
 
-    auto viewer = std::make_shared<pcl::visualization::PCLVisualizer>("point cloud Viewer");
-    viewer->addPointCloud(pcl_pc_result, "result");
-    viewer->addPointCloud(tgt, "tgt");
+    auto viewer_2 = std::make_shared<pcl::visualization::PCLVisualizer>("point cloud Viewer");
+    viewer_2->addPointCloud(pcl_pc_result, "result");
+    viewer_2->addPointCloud(tgt, "tgt");
 
-    while (!viewer->wasStopped())
+    while (!viewer_2->wasStopped())
     {
-        viewer->spinOnce();
+        viewer_2->spinOnce();
         pcl_sleep(0.01);
     }
     return 0;
