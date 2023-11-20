@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
         auto pc_downsampling_0 = pc_remove_noise_0->voxel_grid_down_sample(0.02f);
 
         // auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
+
         auto start = std::chrono::steady_clock::now();
         pc_downsampling_0->estimate_normals(0.04f);
 
@@ -473,7 +474,6 @@ int main(int argc, char *argv[])
         ec.setMaxClusterSize(200000);
         ec.setSearchMethod(tree);
         ec.setInputCloud(cloud_0);
-
         ec.extract(cluster_indices);
         end = std::chrono::steady_clock::now();
         int j = 0;

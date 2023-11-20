@@ -241,9 +241,10 @@ struct check_if_queue_empty_functor
     for (gca::index_t i = 0; i < n_points; ++i)
     {
         if (visited[i])
-        {
-            continue;
-        }
+            if (visited[i])
+            {
+                continue;
+            }
 
         std::vector<gca::index_t> seed_queue;
         seed_queue.reserve(max_cluster_size);
