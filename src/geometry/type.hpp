@@ -1,5 +1,7 @@
 #pragma once
 
+#include "util/math.cuh"
+
 #include <iostream>
 
 #include <vector_types.h>
@@ -21,6 +23,40 @@ struct color3
     float r;
     float g;
     float b;
+
+    __forceinline__ __host__ __device__ operator float3() const
+    {
+        return make_float3(r, g, b);
+    }
+
+    __forceinline__ __host__ __device__ color3 operator+(const color3 &other) const
+    {
+        return color3{r + other.r, g + other.g, b + other.b};
+    }
+
+    __forceinline__ __host__ __device__ color3 &operator+=(const color3 &other)
+    {
+        r += other.r;
+        g += other.g;
+        b += other.b;
+        return *this;
+    }
+
+    __forceinline__ __host__ __device__ float to_intensity() const
+    {
+        return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    }
+
+    __forceinline__ __host__ __device__ float get_average() const
+    {
+        return (r + g + b) / 3;
+    }
+
+    template <typename T> __forceinline__ __host__ __device__ color3 operator/(T n) const
+    {
+        auto _n = (float)n;
+        return color3{r / _n, g / _n, b / _n};
+    }
 };
 
 struct point_t
@@ -30,7 +66,7 @@ struct point_t
     point_property property;
 };
 
-inline std::ostream &operator<<(std::ostream &os, const point_t &point)
+__forceinline__ std::ostream &operator<<(std::ostream &os, const point_t &point)
 {
     os << "Coordinates: x = " << point.coordinates.x << "\n"
        << "             y = " << point.coordinates.y << "\n"

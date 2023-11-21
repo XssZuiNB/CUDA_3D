@@ -8,8 +8,7 @@
 
 namespace gca
 {
-::cudaError_t cuda_voxel_grid_downsample(thrust::device_vector<gca::point_t> &result_points,
-                                         const thrust::device_vector<gca::point_t> &src_points,
-                                         const float3 &point_cloud_min_bound,
-                                         const float voxel_size);
+thrust::device_vector<gca::point_t> cuda_voxel_grid_downsample(
+    const thrust::device_vector<gca::point_t> &src_points, const float3 &voxel_grid_min_bound,
+    const float voxel_size);
 }

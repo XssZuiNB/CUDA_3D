@@ -4,13 +4,14 @@ find_package(OpenMP REQUIRED)
 
 add_executable(
     ${app}
-    app.cpp
+    # app.cpp
+    test_color_icp.cpp
 )
 
 target_compile_features(
     ${app}
     PRIVATE
-    cxx_std_14
+    cxx_std_17
 )
 
 target_include_directories(

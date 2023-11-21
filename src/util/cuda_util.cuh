@@ -1,13 +1,31 @@
 #pragma once
 
+#include "util/console_color.hpp"
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <thrust/device_vector.h>
+#include <thrust/system_error.h>
 
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+
+#define HANDLE_THRUST_ERROR(func)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        try                                                                                        \
+        {                                                                                          \
+            (func);                                                                                \
+        }                                                                                          \
+        catch (thrust::system_error & e)                                                           \
+        {                                                                                          \
+            std::cerr << "Error during Thrust call in " << __FILE__ << " at line " << __LINE__     \
+                      << ": " << e.what() << std::endl;                                            \
+            return cudaErrorUnknown;                                                               \
+        }                                                                                          \
+    } while (0)
 
 __forceinline__ static int div_up(int total, int grain)
 {
@@ -47,8 +65,9 @@ __forceinline__ static void check_cuda_error(cudaError_t err, const char *file, 
 {
     if (err != cudaSuccess)
     {
-        throw std::runtime_error(std::string(file) + ":" + std::to_string(line) + ": " +
-                                 cudaGetErrorString(err));
+        std::cout << RED << "CUDA ERR! "
+                  << (std::string(file) + ":" + std::to_string(line) + ": " +
+                      cudaGetErrorString(err));
     }
 }
 

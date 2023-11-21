@@ -2,8 +2,9 @@ enable_language(CUDA)
 
 find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(PCL REQUIRED)
 find_package(OpenMP REQUIRED)
-# find_package(Eigen3 REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 find_library(REALSENSE2_FOUND realsense2 HINTS ${LIBRARY_DIR} REQUIRED)
 if(NOT REALSENSE2_FOUND)
@@ -36,6 +37,16 @@ file(
     GLOB MOVEMENT_DETECTION_SRC
     "movement_detection/*.cpp"
     "movement_detection/*.hpp"
+    "movement_detection/*.cu"
+    "movement_detection/*.cuh"
+)
+
+file(
+    GLOB REGISTRATION_SRC
+    "registration/*.cpp"
+    "registration/*.hpp"
+    "registration/*.cu"
+    "registration/*.cuh"
 )
 
 file(
@@ -46,6 +57,12 @@ file(
     "util/*.cuh"
 )
 
+file(
+    GLOB VISUALIZER_SRC
+    "visualizer/*.cpp"
+    "visualizer/*.hpp"
+)
+
 add_library(
     gca_lib 
     SHARED
@@ -53,20 +70,23 @@ add_library(
     ${CUDA_CONTAINER_SRC}
     ${GEOMETRY_SRC}
     ${MOVEMENT_DETECTION_SRC}
+    ${REGISTRATION_SRC}
     ${UTIL_SRC}
+    ${VISUALIZER_SRC}
 )
 
 target_compile_features(
     gca_lib
     PRIVATE
-    cxx_std_14
+    cxx_std_17
 )
     
 target_include_directories(
     gca_lib
     PUBLIC
-    ${OpenCV_INCLUDE_DIRS}
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+    ${OpenCV_INCLUDE_DIRS}
+    ${PCL_INCLUDE_DIRS}
 )
     
 target_link_libraries(
@@ -74,9 +94,9 @@ target_link_libraries(
     ${CUDA_LIBRARIES}
     ${REALSENSE2_FOUND}
     ${OpenCV_LIBS}
+    ${PCL_LIBRARIES}
     OpenMP::OpenMP_CXX
-    # ${CUDA_npps_LIBRARY}
-    # Eigen3::Eigen
+    Eigen3::Eigen
 )
 
 set_target_properties(

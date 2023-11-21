@@ -1,7 +1,9 @@
-#include "geometry/cuda_nn_search.cuh"
+#include "cuda_nn_search.cuh"
+
 #include "geometry/geometry_util.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+#include "util/math.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -9,6 +11,7 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/pair.h>
@@ -16,6 +19,8 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
+
+/*TODO: maybe this could be optimized*/
 
 namespace gca
 {
@@ -27,14 +32,7 @@ struct grid_cell_t
     counter_t points_number = 0;
 };
 
-inline std::ostream &operator<<(std::ostream &os, const grid_cell_t &cell)
-{
-    os << "Start Index: " << cell.start_index << ", Points Number: " << cell.points_number << "\n";
-    return os;
-}
-
 /*functors*/
-
 struct compute_grid_cell_functor
 {
     compute_grid_cell_functor(const float3 &grid_cells_min_bound, const float grid_cell_size)
@@ -84,12 +82,13 @@ struct compute_grid_cell_index_functor
     }
 };
 
-struct get_begin_index_of_keys_functor
+struct get_begin_idx_and_count_functor
 {
-    __forceinline__ __device__ gca::index_t operator()(const gca::index_t begin,
-                                                       const gca::index_t __)
+    __forceinline__ __device__ thrust::tuple<gca::index_t, gca::counter_t> operator()(
+        const thrust::tuple<gca::index_t, gca::counter_t> &fir,
+        const thrust::tuple<gca::index_t, gca::counter_t> &sec)
     {
-        return begin;
+        return thrust::make_tuple(thrust::get<0>(fir), thrust::get<1>(fir) + thrust::get<1>(sec));
     }
 };
 
@@ -103,7 +102,7 @@ struct fill_grid_cells_functor
     gca::grid_cell_t *m_result;
 
     __forceinline__ __device__ void operator()(
-        thrust::tuple<gca::index_t, gca::index_t, gca::counter_t> grid_cell_tuple) const
+        const thrust::tuple<gca::index_t, gca::index_t, gca::counter_t> &grid_cell_tuple) const
     {
         gca::index_t index = thrust::get<0>(grid_cell_tuple);
         m_result[index].start_index = thrust::get<1>(grid_cell_tuple);
@@ -143,7 +142,7 @@ struct nn_search_functor
     const float m_search_radius_square;
     const compute_grid_cell_functor m_compute_grid_cell;
 
-    __forceinline__ __device__ gca::index_t operator()(const gca::point_t &point)
+    __forceinline__ __device__ gca::index_t operator()(const gca::point_t &point) const
     {
         /* 1. Devide a grid cell into 8 little cubes
          * 2. Check in which cube the point is
@@ -179,8 +178,6 @@ struct nn_search_functor
 
                     auto start_index =
                         __ldg(&(m_grid_cells_R_ptr[idx_neighbor_grid_cell].start_index));
-                    if (start_index == -1)
-                        continue;
 
                     for (auto offset = 0; offset < n_points; offset++)
                     {
@@ -490,6 +487,7 @@ struct check_if_enough_radius_nn_functor
                                   grid_cell.y * m_n_grid_cells_z + grid_cell.z;
 
         gca::counter_t n_neighbors_in_radius = 0;
+        auto search_r_square = m_search_radius * m_search_radius;
         auto new_point = point;
 
         for (auto i = ix_begin; i < ix_end; i++)
@@ -530,17 +528,15 @@ struct check_if_enough_radius_nn_functor
                         auto euclidean_distance_square =
                             diff_x * diff_x + diff_y * diff_y + diff_z * diff_z;
 
-                        gca::counter_t condition =
-                            (euclidean_distance_square < m_search_radius * m_search_radius);
+                        gca::counter_t condition = (euclidean_distance_square < search_r_square);
                         n_neighbors_in_radius += condition;
                     }
+                    if (n_neighbors_in_radius > m_min_neighbors_in_radius)
+                        return new_point;
                 }
             }
         }
-        if (n_neighbors_in_radius <= m_min_neighbors_in_radius)
-        {
-            new_point.property = gca::point_property::invalid;
-        }
+        new_point.property = gca::point_property::invalid;
         return new_point;
     }
 };
@@ -548,8 +544,9 @@ struct check_if_enough_radius_nn_functor
 /* variables for query points are named as *_Q, and for reference points as *_R */
 ::cudaError_t cuda_nn_search(thrust::device_vector<gca::index_t> &result_nn_idx_in_R,
                              const thrust::device_vector<gca::point_t> &points_Q,
-                             const thrust::device_vector<gca::point_t> &points_R, float3 min_bound,
-                             const float3 max_bound, const float search_radius)
+                             const thrust::device_vector<gca::point_t> &points_R,
+                             const float3 min_bound, const float3 max_bound,
+                             const float search_radius)
 {
     auto n_points_Q = points_Q.size();
     auto n_points_R = points_R.size();
@@ -577,65 +574,27 @@ struct check_if_enough_radius_nn_functor
     thrust::transform(
         points_R.begin(), points_R.end(), grid_cell_idxs_R.begin(),
         compute_grid_cell_index_functor(min_bound, grid_cell_size, n_grid_cells_y, n_grid_cells_z));
-    auto err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> points_sorted_idxs_R(n_points_R);
     thrust::sequence(points_sorted_idxs_R.begin(), points_sorted_idxs_R.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::sort_by_key(grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(),
                         points_sorted_idxs_R.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> idxs_of_sorted_points_R(n_points_R);
-    thrust::sequence(idxs_of_sorted_points_R.begin(), idxs_of_sorted_points_R.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    thrust::device_vector<gca::counter_t> points_counter_per_grid_cell_R(n_points_R);
+    auto begin_idx_and_count = thrust::make_zip_iterator(thrust::make_tuple(
+        idxs_of_sorted_points_R.begin(), points_counter_per_grid_cell_R.begin()));
 
-    auto end_iter_idxs_of_sorted_points_R =
-        thrust::reduce_by_key(grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(),
-                              idxs_of_sorted_points_R.begin(), thrust::make_discard_iterator(),
-                              idxs_of_sorted_points_R.begin(), thrust::equal_to<gca::index_t>(),
-                              get_begin_index_of_keys_functor())
-            .second;
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto idx_and_counter = thrust::make_zip_iterator(
+        thrust::make_tuple(thrust::make_counting_iterator<gca::index_t>(0),
+                           thrust::make_constant_iterator<gca::counter_t>(1)));
 
-    thrust::device_vector<gca::counter_t> points_counter_per_grid_cell_R(n_points_R, 1);
-    auto end_iter_pair_grid_cell_idxs_and_counter_R = thrust::reduce_by_key(
-        grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(), points_counter_per_grid_cell_R.begin(),
-        grid_cell_idxs_R.begin(), points_counter_per_grid_cell_R.begin(),
-        thrust::equal_to<gca::index_t>());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto end_iter_pair = thrust::reduce_by_key(
+        grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(), idx_and_counter, grid_cell_idxs_R.begin(),
+        begin_idx_and_count, thrust::equal_to<gca::index_t>(), get_begin_idx_and_count_functor());
 
-    auto unique_grid_cells_n_R =
-        end_iter_pair_grid_cell_idxs_and_counter_R.first - grid_cell_idxs_R.begin();
-    if (unique_grid_cells_n_R != end_iter_idxs_of_sorted_points_R - idxs_of_sorted_points_R.begin())
-    {
-        return ::cudaErrorInvalidValue;
-    }
+    auto unique_grid_cells_n_R = end_iter_pair.first - grid_cell_idxs_R.begin();
 
     /* 3. fill the grid cell info into grid cells */
     thrust::device_vector<gca::grid_cell_t> grid_cells_R(grid_cells_n);
@@ -647,11 +606,6 @@ struct check_if_enough_radius_nn_functor
                          idxs_of_sorted_points_R.begin() + unique_grid_cells_n_R,
                          points_counter_per_grid_cell_R.begin() + unique_grid_cells_n_R)),
                      fill_grid_cells_functor(grid_cells_R));
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     /* 4. For each point, compute euclidean distances between the point and all the points in
      * neighbor grids to check if they are in the radius of the point. Euclidean distance
@@ -660,11 +614,6 @@ struct check_if_enough_radius_nn_functor
         nn_search_functor(points_R, points_sorted_idxs_R, grid_cells_R, min_bound, n_grid_cells_x,
                           n_grid_cells_y, n_grid_cells_z, search_radius);
     thrust::transform(points_Q.begin(), points_Q.end(), result_nn_idx_in_R.begin(), nn_search_func);
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     return ::cudaSuccess;
 }
@@ -675,8 +624,8 @@ struct check_if_enough_radius_nn_functor
     thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
         &result_pair_neighbors_begin_idx_and_count,
     const thrust::device_vector<gca::point_t> &points_Q,
-    const thrust::device_vector<gca::point_t> &points_R, float3 min_bound, const float3 max_bound,
-    const float search_radius)
+    const thrust::device_vector<gca::point_t> &points_R, const float3 min_bound,
+    const float3 max_bound, const float search_radius)
 {
     auto n_points_Q = points_Q.size();
     auto n_points_R = points_R.size();
@@ -701,65 +650,27 @@ struct check_if_enough_radius_nn_functor
     thrust::transform(
         points_R.begin(), points_R.end(), grid_cell_idxs_R.begin(),
         compute_grid_cell_index_functor(min_bound, grid_cell_size, n_grid_cells_y, n_grid_cells_z));
-    auto err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> points_sorted_idxs_R(n_points_R);
     thrust::sequence(points_sorted_idxs_R.begin(), points_sorted_idxs_R.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::sort_by_key(grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(),
                         points_sorted_idxs_R.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> idxs_of_sorted_points_R(n_points_R);
-    thrust::sequence(idxs_of_sorted_points_R.begin(), idxs_of_sorted_points_R.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    thrust::device_vector<gca::counter_t> points_counter_per_grid_cell_R(n_points_R);
+    auto begin_idx_and_count = thrust::make_zip_iterator(thrust::make_tuple(
+        idxs_of_sorted_points_R.begin(), points_counter_per_grid_cell_R.begin()));
 
-    auto end_iter_idxs_of_sorted_points_R =
-        thrust::reduce_by_key(grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(),
-                              idxs_of_sorted_points_R.begin(), thrust::make_discard_iterator(),
-                              idxs_of_sorted_points_R.begin(), thrust::equal_to<gca::index_t>(),
-                              get_begin_index_of_keys_functor())
-            .second;
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto idx_and_counter = thrust::make_zip_iterator(
+        thrust::make_tuple(thrust::make_counting_iterator<gca::index_t>(0),
+                           thrust::make_constant_iterator<gca::counter_t>(1)));
 
-    thrust::device_vector<gca::counter_t> points_counter_per_grid_cell_R(n_points_R, 1);
-    auto end_iter_pair_grid_cell_idxs_and_counter_R = thrust::reduce_by_key(
-        grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(), points_counter_per_grid_cell_R.begin(),
-        grid_cell_idxs_R.begin(), points_counter_per_grid_cell_R.begin(),
-        thrust::equal_to<gca::index_t>());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto end_iter_pair = thrust::reduce_by_key(
+        grid_cell_idxs_R.begin(), grid_cell_idxs_R.end(), idx_and_counter, grid_cell_idxs_R.begin(),
+        begin_idx_and_count, thrust::equal_to<gca::index_t>(), get_begin_idx_and_count_functor());
 
-    auto unique_grid_cells_n_R =
-        end_iter_pair_grid_cell_idxs_and_counter_R.first - grid_cell_idxs_R.begin();
-    if (unique_grid_cells_n_R != end_iter_idxs_of_sorted_points_R - idxs_of_sorted_points_R.begin())
-    {
-        return ::cudaErrorInvalidValue;
-    }
+    auto unique_grid_cells_n_R = end_iter_pair.first - grid_cell_idxs_R.begin();
 
     /* 3. fill the grid cell info into grid cells */
     thrust::device_vector<gca::grid_cell_t> grid_cells_R(grid_cells_n);
@@ -771,11 +682,6 @@ struct check_if_enough_radius_nn_functor
                          idxs_of_sorted_points_R.begin() + unique_grid_cells_n_R,
                          points_counter_per_grid_cell_R.begin() + unique_grid_cells_n_R)),
                      fill_grid_cells_functor(grid_cells_R));
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     /* 4. First step: Compute the neighbors number of every points */
     thrust::device_vector<gca::counter_t> num_of_neighbors(n_points_Q);
@@ -783,30 +689,15 @@ struct check_if_enough_radius_nn_functor
                                                      min_bound, n_grid_cells_x, n_grid_cells_y,
                                                      n_grid_cells_z, search_radius);
     thrust::transform(points_Q.begin(), points_Q.end(), num_of_neighbors.begin(), step1_func);
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     /* 5. For Each point, compute start index of its neighbors in the result neighbors vector */
     thrust::device_vector<gca::index_t> neighbor_idxs_starts(n_points_Q);
     thrust::exclusive_scan(num_of_neighbors.begin(), num_of_neighbors.end(),
                            neighbor_idxs_starts.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     /* 6. compute total neighbors */
     gca::counter_t total_neighbors =
         thrust::reduce(num_of_neighbors.begin(), num_of_neighbors.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     if (result_pair_neighbors_begin_idx_and_count.size() != n_points_Q)
     {
@@ -827,11 +718,6 @@ struct check_if_enough_radius_nn_functor
 
     thrust::transform(zipped_iter_begin, zipped_iter_end,
                       result_pair_neighbors_begin_idx_and_count.begin(), step2_func);
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     return ::cudaSuccess;
 }
@@ -866,66 +752,27 @@ struct check_if_enough_radius_nn_functor
     thrust::transform(
         src_points.begin(), src_points.end(), grid_cell_idxs.begin(),
         compute_grid_cell_index_functor(min_bound, grid_cell_size, n_grid_cells_y, n_grid_cells_z));
-    auto err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> src_points_sorted_idxs(n_points);
     thrust::sequence(src_points_sorted_idxs.begin(), src_points_sorted_idxs.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::sort_by_key(grid_cell_idxs.begin(), grid_cell_idxs.end(),
                         src_points_sorted_idxs.begin());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     thrust::device_vector<gca::index_t> idxs_of_sorted_points(n_points);
-    thrust::sequence(idxs_of_sorted_points.begin(), idxs_of_sorted_points.end());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    thrust::device_vector<gca::counter_t> points_counter_per_grid_cell(n_points);
+    auto begin_idx_and_count = thrust::make_zip_iterator(
+        thrust::make_tuple(idxs_of_sorted_points.begin(), points_counter_per_grid_cell.begin()));
 
-    auto end_iter_idx_of_sorted_idx =
-        thrust::reduce_by_key(grid_cell_idxs.begin(), grid_cell_idxs.end(),
-                              idxs_of_sorted_points.begin(), thrust::make_discard_iterator(),
-                              idxs_of_sorted_points.begin(), thrust::equal_to<gca::index_t>(),
-                              get_begin_index_of_keys_functor())
-            .second;
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto idx_and_counter = thrust::make_zip_iterator(
+        thrust::make_tuple(thrust::make_counting_iterator<gca::index_t>(0),
+                           thrust::make_constant_iterator<gca::counter_t>(1)));
 
-    thrust::device_vector<gca::counter_t> points_counter_per_grid_cell(n_points, 1);
-    auto end_iter_pair_grid_cell_idxs_and_counter = thrust::reduce_by_key(
-        grid_cell_idxs.begin(), grid_cell_idxs.end(), points_counter_per_grid_cell.begin(),
-        grid_cell_idxs.begin(), points_counter_per_grid_cell.begin(),
-        thrust::equal_to<gca::index_t>());
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
+    auto end_iter_pair = thrust::reduce_by_key(
+        grid_cell_idxs.begin(), grid_cell_idxs.end(), idx_and_counter, grid_cell_idxs.begin(),
+        begin_idx_and_count, thrust::equal_to<gca::index_t>(), get_begin_idx_and_count_functor());
 
-    auto unique_grid_cells_n =
-        end_iter_pair_grid_cell_idxs_and_counter.first - grid_cell_idxs.begin();
-
-    if (unique_grid_cells_n != end_iter_idx_of_sorted_idx - idxs_of_sorted_points.begin())
-    {
-        return ::cudaErrorInvalidValue;
-    }
+    auto unique_grid_cells_n = end_iter_pair.first - grid_cell_idxs.begin();
 
     thrust::device_vector<gca::grid_cell_t> grid_cells_vec(grid_cells_n); // build grid cells
     thrust::for_each(thrust::make_zip_iterator(
@@ -936,11 +783,6 @@ struct check_if_enough_radius_nn_functor
                          idxs_of_sorted_points.begin() + unique_grid_cells_n,
                          points_counter_per_grid_cell.begin() + unique_grid_cells_n)),
                      fill_grid_cells_functor(grid_cells_vec));
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     /* 2. For each point, compute euclidean distances between the point and all the points in
      * neighbor grids to check if they are in the radius of the point. Euclidean distance
@@ -951,11 +793,6 @@ struct check_if_enough_radius_nn_functor
         n_grid_cells_y, n_grid_cells_z, grid_cell_size, search_radius, min_neighbors_in_radius);
     auto end_iter_result_points = thrust::transform(src_points.begin(), src_points.end(),
                                                     result_points.begin(), check_radius_func);
-    err = cudaGetLastError();
-    if (err != ::cudaSuccess)
-    {
-        return err;
-    }
 
     gca::remove_invalid_points(result_points);
 

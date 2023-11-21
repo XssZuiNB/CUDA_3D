@@ -34,8 +34,6 @@ public:
         if (frame)
         {
             thrust::copy(frame, frame + m_data_vec.size(), m_data_vec.begin());
-            auto err = cudaGetLastError();
-            check_cuda_error(err, __FILE__, __LINE__);
         }
     }
 
@@ -45,8 +43,6 @@ public:
         , m_data_vec(other.m_data_vec.size())
     {
         thrust::copy(other.m_data_vec.begin(), other.m_data_vec.end(), m_data_vec.begin());
-        auto err = cudaGetLastError();
-        check_cuda_error(err, __FILE__, __LINE__);
     }
 
     cuda_frame<T, N_CHANNEL>(cuda_frame<T, N_CHANNEL> &&other) noexcept
@@ -66,8 +62,6 @@ public:
                 m_data_vec.resize(other_size);
 
             thrust::copy(other.m_data_vec.begin(), other.m_data_vec.end(), m_data_vec.begin());
-            auto err = cudaGetLastError();
-            check_cuda_error(err, __FILE__, __LINE__);
 
             m_width = other.m_width;
             m_height = other.m_height;
@@ -112,8 +106,6 @@ public:
         }
 
         thrust::copy(frame, frame + new_size, m_data_vec.begin());
-        auto err = cudaGetLastError();
-        check_cuda_error(err, __FILE__, __LINE__);
 
         m_width = width;
         m_height = height;

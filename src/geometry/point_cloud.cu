@@ -1,9 +1,11 @@
+#include "point_cloud.hpp"
+
 #include "geometry/cuda_clustering.cuh"
+#include "geometry/cuda_estimate_normals.cuh"
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/cuda_point_cloud_factory.cuh"
 #include "geometry/cuda_voxel_grid_down_sample.cuh"
 #include "geometry/geometry_util.cuh"
-#include "geometry/point_cloud.hpp"
 #include "util/console_color.hpp"
 
 #include <memory>
@@ -12,23 +14,36 @@
 #include <cuda_runtime_api.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <thrust/pair.h>
 
 namespace gca
 {
 point_cloud::point_cloud(size_t n_points)
     : m_points(n_points)
+    , m_normals(n_points)
 {
 }
 
 point_cloud::point_cloud(const point_cloud &other)
     : m_points(other.m_points)
+    , m_normals(other.m_normals)
+    , m_has_normals(other.m_has_normals)
+    , m_has_bound(other.m_has_bound)
+    , m_min_bound(other.m_min_bound)
+    , m_max_bound(other.m_max_bound)
 {
 }
 
 point_cloud &point_cloud::operator=(const point_cloud &other)
 {
     m_points = other.m_points;
+    m_normals = other.m_normals;
+    m_has_normals = other.m_has_normals;
+    m_has_bound = other.m_has_bound;
+    m_min_bound = other.m_min_bound;
+    m_max_bound = other.m_max_bound;
+
     return *this;
 }
 
@@ -43,109 +58,146 @@ void point_cloud::download(std::vector<gca::point_t> &dst) const
     dst.resize(m_points.size());
     thrust::copy(m_points.begin(), m_points.end(), dst.begin());
 }
-
-bool point_cloud::compute_min_max_bound()
+std::vector<float3> point_cloud::download_normals() const
 {
-    auto min_max_bound = cuda_compute_min_max_bound(m_points);
-    auto err = cudaGetLastError();
-    if (err != ::cudaSuccess)
+    std::vector<float3> temp(m_normals.size());
+    thrust::copy(m_normals.begin(), m_normals.end(), temp.begin());
+    return temp;
+}
+
+void point_cloud::transform(const mat4x4 &trans_mat)
+{
+    cuda_transform_point(m_points, trans_mat);
+    if (m_has_bound)
     {
-        std::cout << YELLOW << "Compute min and max bound for the point cloud failed!" << std::endl;
         m_has_bound = false;
-        return false;
+        compute_min_max_bound();
     }
+    if (m_has_normals)
+    {
+        cuda_transform_normals(m_normals, trans_mat);
+    }
+}
+
+void point_cloud::compute_min_max_bound() const
+{
+    if (m_has_bound)
+    {
+        return;
+    }
+
+    auto min_max_bound = cuda_compute_min_max_bound(m_points);
+
     m_min_bound = min_max_bound.first;
     m_max_bound = min_max_bound.second;
     m_has_bound = true;
-    return true;
+    return;
 }
 
-float3 point_cloud::get_min_bound()
+const float3 &point_cloud::get_min_bound() const
 {
-    if (m_has_bound)
-    {
-        return m_min_bound;
-    }
-
-    if (!compute_min_max_bound())
-    {
-        std::cout << YELLOW
-                  << "Compute bound of point cloud is not possible, invalid bound is returned!"
-                  << std::endl;
-        return make_float3(0.0, 0.0, 0.0);
-    }
+    compute_min_max_bound();
     return m_min_bound;
 }
 
-float3 point_cloud::get_max_bound()
+const float3 &point_cloud::get_max_bound() const
 {
-    if (m_has_bound)
+    compute_min_max_bound();
+    return m_max_bound;
+}
+
+bool point_cloud::estimate_normals(float search_radius)
+{
+    if (m_has_normals)
+        return true;
+
+    if (!m_has_bound)
     {
-        return m_max_bound;
+        compute_min_max_bound();
     }
 
-    if (!compute_min_max_bound())
+    auto padding = 1.5 * search_radius;
+    const auto grid_cells_min_bound =
+        make_float3(m_min_bound.x - padding, m_min_bound.y - padding, m_min_bound.z - padding);
+
+    const auto grid_cells_max_bound =
+        make_float3(m_max_bound.x + padding, m_max_bound.y + padding, m_max_bound.z + padding);
+
+    if (search_radius * std::numeric_limits<int>::max() <
+        max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
+                grid_cells_max_bound.y - grid_cells_min_bound.y),
+            grid_cells_max_bound.z - grid_cells_min_bound.z))
     {
-        std::cout << YELLOW
-                  << "Compute bound of point cloud is not possible, invalid bound is returned!"
-                  << std::endl;
-        return make_float3(0.0, 0.0, 0.0);
+        std::cout << YELLOW << "Radius is too small!" << std::endl;
+        return false;
     }
-    return m_max_bound;
+
+    auto err = cuda_estimate_normals(m_normals, m_points, grid_cells_min_bound,
+                                     grid_cells_max_bound, search_radius);
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW << "Estimate normals failed! \n" << std::endl;
+        return false;
+    }
+
+    m_has_normals = true;
+    return true;
+}
+
+const thrust::device_vector<float3> &point_cloud::get_normals() const
+{
+    if (m_has_normals)
+    {
+        return m_normals;
+    }
+    std::cout << YELLOW << "Estimate normals first! Invalid normals returned! \n" << std::endl;
+    return m_normals;
+}
+
+const thrust::device_vector<gca::point_t> &point_cloud::get_points() const
+{
+    return m_points;
 }
 
 std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_size)
 {
-    auto output = std::make_shared<point_cloud>(m_points.size());
-
-    if (voxel_size <= 0.0)
+    if (voxel_size <= 0.0f)
     {
-        std::cout << YELLOW << "Voxel size is less than 0, a empty point cloud returned!"
-                  << std::endl;
-        return output;
+        std::cout << YELLOW << "Voxel size is less than 0, nullptr returned!" << std::endl;
+        return nullptr;
     }
 
     if (!m_has_bound)
     {
-        if (!compute_min_max_bound())
-        {
-            std::cout
-                << YELLOW
-                << "Compute bound of point cloud is not possible, a empty point cloud returned!"
-                << std::endl;
-            return output;
-        }
+        compute_min_max_bound();
     }
 
     const auto voxel_grid_min_bound =
-        make_float3(m_min_bound.x - voxel_size * 0.5, m_min_bound.y - voxel_size * 0.5,
-                    m_min_bound.z - voxel_size * 0.5);
+        make_float3(m_min_bound.x - voxel_size * 0.5f, m_min_bound.y - voxel_size * 0.5f,
+                    m_min_bound.z - voxel_size * 0.5f);
 
     const auto voxel_grid_max_bound =
-        make_float3(m_max_bound.x + voxel_size * 0.5, m_max_bound.y + voxel_size * 0.5,
-                    m_max_bound.z + voxel_size * 0.5);
+        make_float3(m_max_bound.x + voxel_size * 0.5f, m_max_bound.y + voxel_size * 0.5f,
+                    m_max_bound.z + voxel_size * 0.5f);
 
     if (voxel_size * std::numeric_limits<int>::max() <
         max(max(voxel_grid_max_bound.x - voxel_grid_min_bound.x,
                 voxel_grid_max_bound.y - voxel_grid_min_bound.y),
             voxel_grid_max_bound.z - voxel_grid_min_bound.z))
     {
-        std::cout << YELLOW << "Voxel size is too small, a empty point cloud returned!"
-                  << std::endl;
-        return output;
+        std::cout << YELLOW << "Voxel size is too small, nullptr returned!" << std::endl;
+        return nullptr;
     }
 
-    auto err =
-        cuda_voxel_grid_downsample(output->m_points, m_points, voxel_grid_min_bound, voxel_size);
-    if (err != ::cudaSuccess)
-    {
-        std::cout << YELLOW
-                  << "Compute voxel grid down sample failed, a invalid point cloud returned! \n"
-                  << std::endl;
-        return output;
-    }
+    auto pts = cuda_voxel_grid_downsample(m_points, m_min_bound, voxel_size);
 
-    return output;
+    auto result = std::make_shared<point_cloud>();
+    result->m_points.swap(pts);
+    result->m_has_bound = true;
+    result->m_min_bound = m_min_bound;
+    result->m_max_bound = m_max_bound;
+
+    return result;
 }
 
 std::shared_ptr<point_cloud> point_cloud::radius_outlier_removal(
@@ -161,18 +213,11 @@ std::shared_ptr<point_cloud> point_cloud::radius_outlier_removal(
 
     if (!m_has_bound)
     {
-        if (!compute_min_max_bound())
-        {
-            std::cout
-                << YELLOW
-                << "Compute bound of point cloud is not possible, a empty point cloud returned!"
-                << std::endl;
-            return output;
-        }
+        compute_min_max_bound();
     }
 
-    auto grid_cell_side_len = 2 * radius;
-    auto padding = 1.5 * grid_cell_side_len;
+    auto grid_cell_side_len = 2.0f * radius;
+    auto padding = 1.5f * grid_cell_side_len;
     const auto grid_cells_min_bound =
         make_float3(m_min_bound.x - padding, m_min_bound.y - padding, m_min_bound.z - padding);
 
@@ -207,7 +252,7 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
 {
     auto cluster_of_point = std::make_shared<std::vector<gca::index_t>>(m_points.size());
 
-    if (cluster_tolerance <= 0.0)
+    if (cluster_tolerance <= 0.0f)
     {
         std::cout << YELLOW << "Clustering tolerance is less than 0, a empty result returned!"
                   << std::endl;
@@ -216,16 +261,10 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
 
     if (!m_has_bound)
     {
-        if (!compute_min_max_bound())
-        {
-            std::cout << YELLOW
-                      << "Compute bound of point cloud is not possible, a empty result returned!"
-                      << std::endl;
-            return std::make_pair(cluster_of_point, 0);
-        }
+        compute_min_max_bound();
     }
 
-    auto grid_cell_side_len = 2 * cluster_tolerance;
+    auto grid_cell_side_len = cluster_tolerance;
     auto padding = 1.5 * grid_cell_side_len;
     const auto grid_cells_min_bound =
         make_float3(m_min_bound.x - padding, m_min_bound.y - padding, m_min_bound.z - padding);
@@ -242,25 +281,7 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
                   << std::endl;
         return std::make_pair(cluster_of_point, 0);
     }
-    /*
-    /*
-    thrust::device_vector<gca::index_t> cluster_dev(m_points.size());
-    gca::counter_t n_clusters;
-    auto err = cuda_euclidean_clustering(cluster_dev, n_clusters, m_points, grid_cells_min_bound,
-                                         grid_cells_max_bound, cluster_tolerance, min_cluster_size,
-                                         max_cluster_size);
-    if (err != ::cudaSuccess)
-    {
-        std::cout << YELLOW << "Radius outlier removal failed, a invalid point cloud returned!\n "
-                  << std::endl;
-        return std::make_pair(cluster_of_point, 0);
-    }
 
-    thrust::copy(cluster_dev.begin(), cluster_dev.end(), cluster_of_point->begin());
-
-    gca::counter_t n_clusters;
-    thrust::copy(cluster_dev.begin(), cluster_dev.end(), cluster->begin());
-    */
     gca::counter_t n_clusters;
 
     auto err = cuda_euclidean_clustering(*cluster_of_point, n_clusters, m_points,
@@ -301,13 +322,37 @@ std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth
     return pc;
 }
 
-thrust::device_vector<gca::index_t> point_cloud::nn_search(gca::point_cloud &query_pc,
-                                                           gca::point_cloud &reference_pc,
+std::shared_ptr<point_cloud> point_cloud::create_from_pcl(
+    const pcl::PointCloud<pcl::PointXYZRGB> &pcl_pc)
+{
+    thrust::host_vector<gca::point_t> host_pts(pcl_pc.size());
+    for (size_t i = 0; i < pcl_pc.size(); i++)
+    {
+        gca::point_t p;
+        auto pcl_p = pcl_pc[i];
+        p.coordinates.x = pcl_p.x;
+        p.coordinates.y = pcl_p.y;
+        p.coordinates.z = pcl_p.z;
+        p.color.r = (float)pcl_p.r / 255.0f;
+        p.color.g = (float)pcl_p.g / 255.0f;
+        p.color.b = (float)pcl_p.b / 255.0f;
+        p.property = gca::point_property::inactive;
+        host_pts[i] = p;
+    }
+
+    auto pc = std::make_shared<point_cloud>();
+    pc->m_points = host_pts;
+
+    return pc;
+}
+
+thrust::device_vector<gca::index_t> point_cloud::nn_search(const gca::point_cloud &query_pc,
+                                                           const gca::point_cloud &reference_pc,
                                                            float radius)
 {
     thrust::device_vector<gca::index_t> result_nn_idx_in_reference(query_pc.points_number());
 
-    if (radius <= 0.0)
+    if (radius <= 0.0f)
     {
         std::cout << YELLOW << "Radius is less than 0, a empty result returned!" << std::endl;
         return result_nn_idx_in_reference;
@@ -315,29 +360,15 @@ thrust::device_vector<gca::index_t> point_cloud::nn_search(gca::point_cloud &que
 
     if (!query_pc.m_has_bound)
     {
-        if (!(query_pc.compute_min_max_bound()))
-        {
-            std::cout
-                << YELLOW
-                << "Compute bound of query point cloud is not possible, a empty result returned!"
-                << std::endl;
-            return result_nn_idx_in_reference;
-        }
+        query_pc.compute_min_max_bound();
     }
 
     if (!reference_pc.m_has_bound)
     {
-        if (!(reference_pc.compute_min_max_bound()))
-        {
-            std::cout << YELLOW
-                      << "Compute bound of reference point cloud is not possible, a empty result "
-                         "returned!"
-                      << std::endl;
-            return result_nn_idx_in_reference;
-        }
+        reference_pc.compute_min_max_bound();
     }
 
-    auto padding = 1.5 * radius;
+    auto padding = 1.5f * radius;
     const auto grid_cells_min_bound =
         make_float3(min(query_pc.m_min_bound.x, reference_pc.m_min_bound.x) - padding,
                     min(query_pc.m_min_bound.y, reference_pc.m_min_bound.y) - padding,
@@ -348,7 +379,7 @@ thrust::device_vector<gca::index_t> point_cloud::nn_search(gca::point_cloud &que
                     max(query_pc.m_max_bound.y, reference_pc.m_max_bound.y) + padding,
                     max(query_pc.m_max_bound.z, reference_pc.m_max_bound.z) + padding);
 
-    if (radius * 2 * std::numeric_limits<int>::max() <
+    if (radius * std::numeric_limits<int>::max() <
         max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
                 grid_cells_max_bound.y - grid_cells_min_bound.y),
             grid_cells_max_bound.z - grid_cells_min_bound.z))
@@ -372,15 +403,7 @@ thrust::device_vector<gca::index_t> point_cloud::nn_search(gca::point_cloud &que
 void point_cloud::nn_search(std::vector<gca::index_t> &result_nn_idx, gca::point_cloud &query_pc,
                             gca::point_cloud &reference_pc, float radius)
 {
-    auto start = std::chrono::steady_clock::now();
     auto result_nn_idx_device_vec = point_cloud::nn_search(query_pc, reference_pc, radius);
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "Cuda nn time in microseconds: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
-              << std::endl;
-    std::cout << "Cuda nn time in milliseconds: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
-              << std::endl;
 
     result_nn_idx.resize(result_nn_idx_device_vec.size());
     thrust::copy(result_nn_idx_device_vec.begin(), result_nn_idx_device_vec.end(),
