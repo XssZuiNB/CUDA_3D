@@ -193,7 +193,7 @@ private:
         auto r_geometry_ = dot((pts_src.coordinates - nn_pts_tgt.coordinates), normal);
 
         // geometric
-        // jacobian
+        // jacobian derivation see Master thesis Shengsi Xu
         mat3x1 J_geo_rotation(m_sqrt_lambda_geometry * cross(pts_src.coordinates, normal));
         mat3x1 J_geo_tranlation(m_sqrt_lambda_geometry * normal);
         J_geometry.set_block<3, 1>(J_geo_rotation, 0, 0);
