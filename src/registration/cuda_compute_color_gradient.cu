@@ -84,7 +84,7 @@ struct compute_color_gradient_functor
         AtA(2, 2) += 1.0e-6f;
 
         // inverse is numerically unstable, could cause problem sometimes, dont use!
-        // const float3 x(AtA.get_inverse() * Atb);
+        // return (AtA.get_inverse() * Atb);
         return ldlt_3x3(AtA).solve(Atb);
     }
 };
