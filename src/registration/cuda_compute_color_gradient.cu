@@ -1,6 +1,7 @@
 #include "cuda_compute_color_gradient.cuh"
 
 #include "geometry/cuda_nn_search.cuh"
+#include "util/little_3x3_ldlt_solve.cuh"
 #include "util/math.cuh"
 
 #include <thrust/device_vector.h>
@@ -9,49 +10,6 @@
 
 namespace gca
 {
-__forceinline__ __device__ void ldlt(const mat3x3 &A, mat3x3 &L, mat3x3 &D)
-{
-    L.set_identity();
-    D.set_zero();
-
-    D(0, 0) = A(0, 0);
-    L(1, 0) = A(1, 0) / D(0, 0);
-    L(2, 0) = A(2, 0) / D(0, 0);
-    D(1, 1) = A(1, 1) - L(1, 0) * L(1, 0) * D(0, 0);
-    L(2, 1) = (A(2, 1) - L(1, 0) * L(2, 0) * D(0, 0)) / D(1, 1);
-    D(2, 2) = A(2, 2) - L(2, 0) * L(2, 0) * D(0, 0) - L(2, 1) * L(2, 1) * D(1, 1);
-}
-
-// Ly = b
-__forceinline__ __device__ mat3x1 solve_lower(const mat3x3 &L, const mat3x1 &b)
-{
-    mat3x1 y;
-    y(0) = b(0);
-    y(1) = b(1) - L(1, 0) * y(0);
-    y(2) = b(2) - L(2, 0) * y(0) - L(2, 1) * y(1);
-    return y;
-}
-
-// Dz = y
-__forceinline__ __device__ mat3x1 solve_diagonal(const mat3x3 &D, const mat3x1 &y)
-{
-    mat3x1 z;
-    z(0) = y(0) / D(0, 0);
-    z(1) = y(1) / D(1, 1);
-    z(2) = y(2) / D(2, 2);
-    return z;
-}
-
-// L^Tx = z
-__forceinline__ __device__ mat3x1 solve_upper(const mat3x3 &L, const mat3x1 &z)
-{
-    mat3x1 x;
-    x(2) = z(2);
-    x(1) = z(1) - L(2, 1) * x(2);
-    x(0) = z(0) - L(1, 0) * x(1) - L(2, 0) * x(2);
-    return x;
-}
-
 struct compute_color_gradient_functor
 {
     compute_color_gradient_functor(
@@ -125,15 +83,9 @@ struct compute_color_gradient_functor
         AtA(1, 1) += 1.0e-6f;
         AtA(2, 2) += 1.0e-6f;
 
-        mat3x3 L, D;
-        ldlt(AtA, L, D);
-        auto y = solve_lower(L, Atb);
-        auto z = solve_diagonal(D, y);
-        auto x = solve_upper(L, z);
-
-        // inverse is numerically unstable, could cause problem sometimes.
+        // inverse is numerically unstable, could cause problem sometimes, dont use!
         // const float3 x(AtA.get_inverse() * Atb);
-        return x;
+        return ldlt_3x3(AtA).solve(Atb);
     }
 };
 

@@ -3,8 +3,8 @@
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+#include "util/fast_eigen_val_vec.cuh"
 #include "util/math.cuh"
-#include "util/numeric.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
