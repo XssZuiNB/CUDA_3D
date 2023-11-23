@@ -185,9 +185,9 @@ private:
         mat6x1 &J_geometry, mat6x1 &J_color, float &r_geometry, float &r_color,
         const gca::point_t &pts_src, const gca::index_t &nn_idx_tgt) const
     {
-        auto nn_pts_tgt = m_tgt_points_ptr[nn_idx_tgt];
-        auto normal = m_tgt_normals_ptr[nn_idx_tgt];
-        auto color_gradient_tgt = m_tgt_color_gradient_ptr[nn_idx_tgt];
+        const auto &nn_pts_tgt = m_tgt_points_ptr[nn_idx_tgt];
+        const auto &normal = m_tgt_normals_ptr[nn_idx_tgt];
+        const auto &color_gradient_tgt = m_tgt_color_gradient_ptr[nn_idx_tgt];
 
         // r_geometry without weight, this is also needed in color part, so compute it here firstly.
         auto r_geometry_ = dot((pts_src.coordinates - nn_pts_tgt.coordinates), normal);
@@ -208,7 +208,7 @@ private:
         mat3x1 normal_as_mat(normal);
 
         // J_f(s)
-        mat3x3 df_div_ds = mat3x3::get_identity();
+        mat3x3 df_div_ds(mat3x3::get_identity());
 
         // from equation 9: df(s)/ds = I - n * nT
         df_div_ds = df_div_ds - normal_as_mat * normal_as_mat.get_transpose();
