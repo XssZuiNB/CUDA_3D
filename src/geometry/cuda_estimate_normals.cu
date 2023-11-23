@@ -3,8 +3,8 @@
 #include "geometry/cuda_nn_search.cuh"
 #include "geometry/type.hpp"
 #include "util/cuda_util.cuh"
+#include "util/fast_eigen_val_vec.cuh"
 #include "util/math.cuh"
-#include "util/numeric.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -124,8 +124,7 @@ struct compute_normal_functor
         else
             normal = eigen_pair_2.second;
 
-        return (norm3df(normal.x, normal.y, normal.z) > 0.0f) ? normal
-                                                              : make_float3(0.0f, 0.0f, 1.0f);
+        return (norm(normal) > 0.0f) ? normal : make_float3(0.0f, 0.0f, 1.0f);
     }
 };
 

@@ -49,6 +49,15 @@ int loadPointCloud(const std::string &filename, pcl::PointCloud<pcl::PointXYZRGB
     return 1;
 }
 
+void downSampleVoxelGrids(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
+{
+    pcl::VoxelGrid<pcl::PointXYZRGB> sor;
+    sor.setLeafSize(0.02, 0.02, 0.02);
+    sor.setInputCloud(cloud);
+    sor.filter(*cloud);
+    std::cout << "Downsampled to " << cloud->size() << " points\n";
+}
+
 int main(int argc, char *argv[])
 {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr src(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -109,10 +118,8 @@ int main(int argc, char *argv[])
 
     auto down_sample_src = src_device->voxel_grid_down_sample(0.02f);
     auto down_sample_tgt = tgt_device->voxel_grid_down_sample(0.02f);
-
     down_sample_tgt->estimate_normals(0.04f);
-
-    gca::color_icp color_icp(20, 0.08f, 0.04f);
+    gca::color_icp color_icp(50, 0.08f, 0.04f);
     color_icp.set_source_point_cloud(down_sample_src);
     color_icp.set_target_point_cloud(down_sample_tgt);
 

@@ -172,18 +172,10 @@ std::shared_ptr<point_cloud> point_cloud::voxel_grid_down_sample(float voxel_siz
         compute_min_max_bound();
     }
 
-    const auto voxel_grid_min_bound =
-        make_float3(m_min_bound.x - voxel_size * 0.5f, m_min_bound.y - voxel_size * 0.5f,
-                    m_min_bound.z - voxel_size * 0.5f);
-
-    const auto voxel_grid_max_bound =
-        make_float3(m_max_bound.x + voxel_size * 0.5f, m_max_bound.y + voxel_size * 0.5f,
-                    m_max_bound.z + voxel_size * 0.5f);
+    auto bound_diff = m_max_bound - m_min_bound;
 
     if (voxel_size * std::numeric_limits<int>::max() <
-        max(max(voxel_grid_max_bound.x - voxel_grid_min_bound.x,
-                voxel_grid_max_bound.y - voxel_grid_min_bound.y),
-            voxel_grid_max_bound.z - voxel_grid_min_bound.z))
+        max(max(bound_diff.x, bound_diff.y), bound_diff.z))
     {
         std::cout << YELLOW << "Voxel size is too small, nullptr returned!" << std::endl;
         return nullptr;
@@ -333,9 +325,10 @@ std::shared_ptr<point_cloud> point_cloud::create_from_pcl(
         p.coordinates.x = pcl_p.x;
         p.coordinates.y = pcl_p.y;
         p.coordinates.z = pcl_p.z;
-        p.color.r = (float)pcl_p.r / 255.0f;
-        p.color.g = (float)pcl_p.g / 255.0f;
-        p.color.b = (float)pcl_p.b / 255.0f;
+        auto scale = 1.0f / 255.0f;
+        p.color.r = (float)pcl_p.r * scale;
+        p.color.g = (float)pcl_p.g * scale;
+        p.color.b = (float)pcl_p.b * scale;
         p.property = gca::point_property::inactive;
         host_pts[i] = p;
     }
@@ -392,8 +385,7 @@ thrust::device_vector<gca::index_t> point_cloud::nn_search(const gca::point_clou
                               grid_cells_min_bound, grid_cells_max_bound, radius);
     if (err != ::cudaSuccess)
     {
-        std::cout << YELLOW << "Radius outlier removal failed, a invalid result returned! \n"
-                  << std::endl;
+        std::cout << YELLOW << "NN search failed, a invalid result returned! \n" << std::endl;
         return result_nn_idx_in_reference;
     }
 

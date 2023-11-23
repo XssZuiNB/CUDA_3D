@@ -2064,7 +2064,7 @@ template <> __forceinline__ __device__ __host__ matNxM<3, 3> matNxM<3, 3>::get_i
     res.entries[6] = entries[3] * entries[7] - entries[4] * entries[6];
     res.entries[7] = -entries[0] * entries[7] + entries[1] * entries[6];
     res.entries[8] = entries[0] * entries[4] - entries[1] * entries[3];
-    return res * (1.0f / det());
+    return res / det();
 }
 
 template <> __forceinline__ __device__ __host__ float matNxM<2, 2>::det() const

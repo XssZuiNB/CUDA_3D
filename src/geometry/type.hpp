@@ -44,18 +44,21 @@ struct color3
 
     __forceinline__ __host__ __device__ float to_intensity() const
     {
-        return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+        // see paper: Why You Should Forget Luminance Conversion and Do Something
+        // Better, CVPR 2017
+        return 0.2126 * static_cast<double>(r) + 0.7152 * static_cast<double>(g) +
+               0.0722 * static_cast<double>(b);
     }
 
     __forceinline__ __host__ __device__ float get_average() const
     {
-        return (r + g + b) / 3;
+        return (static_cast<double>(r) + static_cast<double>(g) + static_cast<double>(b)) / 3.0;
     }
 
     template <typename T> __forceinline__ __host__ __device__ color3 operator/(T n) const
     {
-        auto _n = (float)n;
-        return color3{r / _n, g / _n, b / _n};
+        auto _n = 1.0f / (float)n;
+        return color3{r * _n, g * _n, b * _n};
     }
 };
 

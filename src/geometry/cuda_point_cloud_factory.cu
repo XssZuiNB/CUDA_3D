@@ -18,12 +18,12 @@ namespace gca
 
 __forceinline__ __device__ static float __gaussian(float x, float sigma)
 {
-    return expf(-(x * x) / (2 * sigma * sigma));
+    return expf(-(x * x) / (sigma * sigma));
 }
 
 __forceinline__ __device__ static float __gaussian_square(float x_square, float sigma)
 {
-    return expf(-x_square / (2 * sigma * sigma));
+    return expf(-x_square / (sigma * sigma));
 }
 
 __forceinline__ __device__ static float __bilateral_filter(const uint16_t *input,
@@ -130,7 +130,7 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
 
 /************************************** Filter out eddges ***************************************/
 /* See: https://github.com/raluca-scona/Joint-VO-SF/blob/master/segmentation_background.cpp     */
-/* line 56 to 69. NOT USED !!!                                                                  */
+/* line 56 to 69. NOT USED!!! For realsense nothing can fix the noise... */
 /*
 __forceinline__ __device__ static float __edges_filter(const uint16_t *depth, uint32_t input_width,
                                                        uint32_t input_height, int index_x,

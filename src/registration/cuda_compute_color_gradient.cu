@@ -1,6 +1,7 @@
 #include "cuda_compute_color_gradient.cuh"
 
 #include "geometry/cuda_nn_search.cuh"
+#include "util/little_3x3_ldlt_solve.cuh"
 #include "util/math.cuh"
 
 #include <thrust/device_vector.h>
@@ -32,8 +33,8 @@ struct compute_color_gradient_functor
 
     __forceinline__ __device__ float3 operator()(gca::index_t idx) const
     {
-        const auto pts(m_pts_ptr[idx]);
-        const auto normal(m_normals_ptr[idx]);
+        const auto &pts(m_pts_ptr[idx]);
+        const auto &normal(m_normals_ptr[idx]);
         const auto begin_idx(__ldg(&(m_neighbors_begin_idx_and_count_ptr[idx].first)));
         const auto knn(__ldg(&(m_neighbors_begin_idx_and_count_ptr[idx].second)));
 
@@ -61,12 +62,12 @@ struct compute_color_gradient_functor
                 continue;
 
             const auto &nn_pts = m_pts_ptr[nn_idx];
-            const auto p_proj_coordinates =
+            const auto nn_pts_proj_coordinates =
                 nn_pts.coordinates - dot(nn_pts.coordinates - pts.coordinates, normal) * normal;
 
             float nn_intensity = nn_pts.color.to_intensity();
 
-            mat3x1 vec_pp_p(p_proj_coordinates - pts.coordinates);
+            mat3x1 vec_pp_p(nn_pts_proj_coordinates - pts.coordinates);
             AtA += vec_pp_p * vec_pp_p.get_transpose();
             Atb += vec_pp_p * (nn_intensity - intensity);
         }
@@ -82,9 +83,9 @@ struct compute_color_gradient_functor
         AtA(1, 1) += 1.0e-6f;
         AtA(2, 2) += 1.0e-6f;
 
-        const auto x(AtA.get_inverse() * Atb);
-
-        return make_float3(x(0), x(1), x(2));
+        // inverse is numerically unstable, could cause problem sometimes, dont use!
+        // return (AtA.get_inverse() * Atb);
+        return ldlt_3x3(AtA).solve(Atb);
     }
 };
 
