@@ -123,6 +123,10 @@ bool color_icp::align()
             return false;
         }
 
+        // Use Levenberg-Marquardt?
+        mat6x6 lm_coef = 0.01f * (mat6x6::get_identity() * JTJ);
+        JTJ += lm_coef;
+
         auto this_transformation_matrix = solve_JTJ_JTr(JTJ, JTr);
 
         m_source_pc->transform(this_transformation_matrix);

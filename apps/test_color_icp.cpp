@@ -116,8 +116,8 @@ int main(int argc, char *argv[])
      * normal estimation */
     auto start = std::chrono::steady_clock::now();
 
-    auto down_sample_src = src_device->voxel_grid_down_sample(0.01f);
-    auto down_sample_tgt = tgt_device->voxel_grid_down_sample(0.01f);
+    auto down_sample_src = src_device->voxel_grid_down_sample(0.02f);
+    auto down_sample_tgt = tgt_device->voxel_grid_down_sample(0.02f);
     down_sample_tgt->estimate_normals(0.04f);
     gca::color_icp color_icp(50, 0.08f, 0.04f);
     color_icp.set_source_point_cloud(down_sample_src);
