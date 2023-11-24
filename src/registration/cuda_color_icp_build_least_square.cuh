@@ -38,4 +38,4 @@ namespace gca
     const thrust::device_vector<float3> &tgt_normals,
     const thrust::device_vector<float3> &tgt_color_gradient,
     const thrust::device_vector<gca::index_t> &nn_src_tgt, const float lambda);
-}
+} // namespace gca
