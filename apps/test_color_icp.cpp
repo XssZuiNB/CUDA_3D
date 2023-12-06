@@ -130,6 +130,8 @@ int main(int argc, char *argv[])
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
               << std::endl;
 
+    std::cout << "RSME " << color_icp.get_RSME() << std::endl;
+
     // employ the result to original point cloud
     src_device->transform(color_icp.get_final_transformation_matrix());
     auto pc_host = src_device->download();
