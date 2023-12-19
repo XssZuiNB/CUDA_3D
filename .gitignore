@@ -34,3 +34,4 @@
 # The build folder
 build/
 .vscode/
+.cache

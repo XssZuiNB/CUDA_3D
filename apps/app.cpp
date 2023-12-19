@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 30);
+    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
 
@@ -86,12 +86,14 @@ int main(int argc, char *argv[])
     gca::cuda_depth_frame gpu_depth_0(rs_cam_0.get_width(), rs_cam_0.get_height());
 
     bool if_first_frame = true;
-    gca::color_icp color_icp(10, 0.08f, 0.06f);
+    gca::color_icp color_icp(10, 0.05f, 0.02f);
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
 
     auto detector = gca::movement_detection();
     gca::visualizer v;
 
+    std::shared_ptr<gca::point_cloud> src_pc;
+    std::shared_ptr<gca::point_cloud> tgt_pc;
     while (!exit_requested)
     {
         rs_cam_0.receive_data();
@@ -103,23 +105,27 @@ int main(int argc, char *argv[])
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 4);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 1.5);
 
-        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.04f);
-        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.05f, 4);
+        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.01f);
+        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 5);
 
         if (if_first_frame)
         {
-            color_icp.set_source_point_cloud(pc_remove_noise_0);
+            src_pc = pc_remove_noise_0;
             if_first_frame = false;
-            continue;
+            auto cluster = src_pc->euclidean_clustering(0.3, 50, 50000);
+            std::cout << cluster.second << std::endl;
+            break;
         }
-
+        color_icp.set_source_point_cloud(src_pc);
         // auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
 
-        pc_remove_noise_0->estimate_normals(0.08f);
+        pc_remove_noise_0->estimate_normals(0.02f);
         color_icp.set_target_point_cloud(pc_remove_noise_0);
         color_icp.align();
+
+        src_pc = pc_remove_noise_0;
 
         std::cout << color_icp.get_RSME() << std::endl;
         auto end = std::chrono::steady_clock::now();
@@ -606,6 +612,8 @@ int main(int argc, char *argv[])
 
         std::cout << "__________________________________________________" << std::endl;
     }
+
+    v.close();
 
     return 0;
 }

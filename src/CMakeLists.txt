@@ -84,6 +84,7 @@ target_compile_features(
 target_include_directories(
     gca_lib
     PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     ${OpenCV_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}

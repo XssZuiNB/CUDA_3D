@@ -119,13 +119,14 @@ int main(int argc, char *argv[])
     auto down_sample_src = src_device->voxel_grid_down_sample(0.02f);
     auto down_sample_tgt = tgt_device->voxel_grid_down_sample(0.02f);
     down_sample_tgt->estimate_normals(0.04f);
+    auto end = std::chrono::steady_clock::now();
     gca::color_icp color_icp(50, 0.08f, 0.04f);
     color_icp.set_source_point_cloud(down_sample_src);
     color_icp.set_target_point_cloud(down_sample_tgt);
 
     color_icp.align();
 
-    auto end = std::chrono::steady_clock::now();
+    
     std::cout << "Total color icp in milliseconds: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
               << std::endl;

@@ -38,9 +38,11 @@ void visualizer::threadsafe_push(std::shared_ptr<gca::point_cloud> new_pc)
 void visualizer::threadsafe_pop(std::shared_ptr<gca::point_cloud> &pc)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
-    m_cond_var.wait(lock, [this] { return !m_data_queue.empty(); });
-    pc = m_data_queue.front();
+    m_cond_var.wait(lock, [this] { return !m_data_queue.empty() || !m_running; });
+    if (m_running) {
+     pc = m_data_queue.front();
     m_data_queue.pop();
+    }
 }
 
 void visualizer::update(std::shared_ptr<gca::point_cloud> new_pc)
@@ -114,6 +116,8 @@ void visualizer::visualizer_loop()
 void visualizer::close()
 {
     m_running = false;
+
+    m_cond_var.notify_one();
 
     if (m_thread.joinable())
     {
