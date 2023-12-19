@@ -288,6 +288,60 @@ std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> point_clou
     return std::make_pair(cluster_of_point, n_clusters);
 }
 
+std ::vector<thrust::host_vector<gca::index_t>> point_cloud::convex_obj_segmentation(
+    const float cluster_tolerance, const gca::counter_t min_cluster_size,
+    const gca::counter_t max_cluster_size)
+{
+    std::vector<thrust::host_vector<gca::index_t>> objs;
+
+    if (!m_has_normals)
+    {
+        std::cout << YELLOW << "Point Cloud does not have normals, a empty result returned!"
+                  << std::endl;
+        return objs;
+    }
+
+    if (cluster_tolerance <= 0.0f)
+    {
+        std::cout << YELLOW << "Clustering tolerance is less than 0, a empty result returned!"
+                  << std::endl;
+        return objs;
+    }
+
+    if (!m_has_bound)
+    {
+        compute_min_max_bound();
+    }
+
+    auto grid_cell_side_len = cluster_tolerance;
+    auto padding = 1.5 * grid_cell_side_len;
+    const auto grid_cells_min_bound =
+        make_float3(m_min_bound.x - padding, m_min_bound.y - padding, m_min_bound.z - padding);
+
+    const auto grid_cells_max_bound =
+        make_float3(m_max_bound.x + padding, m_max_bound.y + padding, m_max_bound.z + padding);
+
+    if (grid_cell_side_len * std::numeric_limits<int>::max() <
+        max(max(grid_cells_max_bound.x - grid_cells_min_bound.x,
+                grid_cells_max_bound.y - grid_cells_min_bound.y),
+            grid_cells_max_bound.z - grid_cells_min_bound.z))
+    {
+        std::cout << YELLOW << "Cluster tolerance is too small, a empty result returned!"
+                  << std::endl;
+        return objs;
+    }
+
+    auto err = cuda_local_convex_segmentation(objs, m_points, m_normals, grid_cells_min_bound,
+                                              grid_cells_max_bound, cluster_tolerance,
+                                              min_cluster_size, max_cluster_size);
+    if (err != ::cudaSuccess)
+    {
+        std::cout << YELLOW << "Clustering failed, a invalid result returned ! \n " << std::endl;
+        return objs;
+    }
+    return objs;
+}
+
 std::shared_ptr<point_cloud> point_cloud::create_from_rgbd(const gca::cuda_depth_frame &depth,
                                                            const gca::cuda_color_frame &color,
                                                            const gca::cuda_camera_param &param,

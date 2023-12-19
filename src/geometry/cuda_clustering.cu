@@ -2,6 +2,7 @@
 
 #include "geometry/cuda_nn_search.cuh"
 #include "util/cuda_util.cuh"
+#include "util/math.cuh"
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -10,6 +11,7 @@
 #include <thrust/fill.h>
 #include <thrust/find.h>
 #include <thrust/for_each.h>
+#include <thrust/host_vector.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/permutation_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -294,26 +296,21 @@ struct check_if_queue_empty_functor
     return ::cudaSuccess;
 }
 
-::cudaError_t cuda_euclidean_clustering_color(std::vector<gca::index_t> &cluster_of_point,
-                                              gca::counter_t &total_clusters,
-                                              const thrust::device_vector<gca::point_t> &points,
-                                              const float3 min_bound, const float3 max_bound,
-                                              const float cluster_tolerance,
-                                              const gca::counter_t min_cluster_size,
-                                              const gca::counter_t max_cluster_size)
+::cudaError_t cuda_local_convex_segmentation(std::vector<thrust::host_vector<gca::index_t>> &objs,
+                                             const thrust::device_vector<gca::point_t> &points,
+                                             const thrust::device_vector<float3> &normals,
+                                             const float3 min_bound, const float3 max_bound,
+                                             const float cluster_tolerance,
+                                             const gca::counter_t min_cluster_size,
+                                             const gca::counter_t max_cluster_size)
 {
     if (min_cluster_size <= 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
     {
         return ::cudaErrorInvalidValue;
     }
 
-    auto n_points = points.size();
-    if (cluster_of_point.size() != n_points)
-    {
-        cluster_of_point.resize(n_points);
-    }
-
     thrust::device_vector<gca::index_t> all_neighbors;
+    auto n_points = points.size();
     thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
         pair_neighbors_begin_idx_and_count(n_points);
 
@@ -324,17 +321,34 @@ struct check_if_queue_empty_functor
         return err;
     }
 
-    std::vector<gca::index_t> all_neighbors_host(all_neighbors.size());
-    std::vector<thrust::pair<gca::index_t, gca::counter_t>> pair_neighbors_begin_idx_and_count_host(
-        n_points);
+    thrust::host_vector<gca::index_t> all_neighbors_host(all_neighbors);
+    thrust::host_vector<thrust::pair<gca::index_t, gca::counter_t>>
+        pair_neighbors_begin_idx_and_count_host(pair_neighbors_begin_idx_and_count);
 
-    thrust::copy(all_neighbors.begin(), all_neighbors.end(), all_neighbors_host.begin());
-    thrust::copy(pair_neighbors_begin_idx_and_count.begin(),
-                 pair_neighbors_begin_idx_and_count.end(),
-                 pair_neighbors_begin_idx_and_count_host.begin());
+    thrust::host_vector<gca::point_t> points_host(points);
+    thrust::host_vector<float3> normals_host(normals);
 
     std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
     gca::index_t cluster = 0;
+
+    objs.clear();
+
+    auto check_local_convex = [&](gca::index_t p1_idx, gca::index_t p2_idx) -> bool {
+        /*paper */
+        float3 d = points_host[p2_idx].coordinates - points_host[p1_idx].coordinates;
+        double d_norm = norm(d);
+
+        float3 &n1 = normals_host[p1_idx];
+        float3 &n2 = normals_host[p2_idx];
+
+        /******************************************************* 0.5 is 10 deg.*/
+        bool condition1 = (dot(n1, d) <= d_norm * cos(M_PI / 2 - 0.5)) &&
+                          (dot(n2, -d) <= d_norm * cos(M_PI / 2 - 0.5));
+
+        bool condition2 = dot(n1, n2) >= 1 - d_norm * cos(M_PI / 2 - 0.5);
+
+        return condition1 || condition2;
+    };
 
     for (gca::index_t i = 0; i < n_points; ++i)
     {
@@ -343,7 +357,7 @@ struct check_if_queue_empty_functor
             continue;
         }
 
-        std::vector<gca::index_t> seed_queue;
+        thrust::host_vector<gca::index_t> seed_queue;
         seed_queue.reserve(max_cluster_size);
         gca::index_t sq_idx = 0;
         seed_queue.push_back(i);
@@ -363,6 +377,9 @@ struct check_if_queue_empty_functor
                 if (visited[neighbor])
                     continue;
 
+                if (!check_local_convex(this_p, neighbor))
+                    continue;
+
                 visited[neighbor] = 1;
                 seed_queue.push_back(neighbor);
             }
@@ -372,22 +389,10 @@ struct check_if_queue_empty_functor
 
         if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
         {
-            for (const auto &neighbor : seed_queue)
-            {
-                cluster_of_point[neighbor] = cluster;
-            }
+            objs.push_back(seed_queue);
             ++cluster;
         }
-        else
-        {
-            for (const auto &neighbor : seed_queue)
-            {
-                cluster_of_point[neighbor] = -1;
-            }
-        }
     }
-    total_clusters = cluster;
-
     return ::cudaSuccess;
 }
 } // namespace gca

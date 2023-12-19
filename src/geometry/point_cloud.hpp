@@ -10,6 +10,7 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -62,6 +63,10 @@ public:
                                                         gca::counter_t min_neighbors_in_radius);
 
     std::pair<std::shared_ptr<std::vector<gca::index_t>>, gca::counter_t> euclidean_clustering(
+        const float cluster_tolerance, const gca::counter_t min_cluster_size,
+        const gca::counter_t max_cluster_size);
+
+    std ::vector<thrust::host_vector<gca::index_t>> convex_obj_segmentation(
         const float cluster_tolerance, const gca::counter_t min_cluster_size,
         const gca::counter_t max_cluster_size);
 

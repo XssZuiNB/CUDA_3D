@@ -55,6 +55,11 @@ __host__ __device__ __forceinline__ float3 operator-(const float3 &a, const floa
     return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
+__host__ __device__ __forceinline__ float3 operator-(const float3 &a)
+{
+    return make_float3(-a.x, -a.y, -a.z);
+}
+
 __host__ __device__ __forceinline__ float3 operator*(const float3 &a, float b)
 {
     return make_float3(a.x * b, a.y * b, a.z * b);

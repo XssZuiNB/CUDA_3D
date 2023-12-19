@@ -109,19 +109,19 @@ int main(int argc, char *argv[])
 
         auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.01f);
         auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 5);
+        pc_remove_noise_0->estimate_normals(0.02f);
 
         if (if_first_frame)
         {
             src_pc = pc_remove_noise_0;
             if_first_frame = false;
-            auto cluster = src_pc->euclidean_clustering(0.3, 50, 50000);
-            std::cout << cluster.second << std::endl;
-            break;
+            auto objs = src_pc->convex_obj_segmentation(0.3, 50, 50000);
+            std::cout << objs.size() << std::endl;
+            continue;
         }
         color_icp.set_source_point_cloud(src_pc);
         // auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
 
-        pc_remove_noise_0->estimate_normals(0.02f);
         color_icp.set_target_point_cloud(pc_remove_noise_0);
         color_icp.align();
 
