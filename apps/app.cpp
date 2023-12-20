@@ -32,6 +32,8 @@
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
+using namespace std::chrono_literals;
+
 static bool exit_requested = false; // for ctrl+c exit
 static void exit_sig_handler(int param)
 {
@@ -80,7 +82,7 @@ int main(int argc, char *argv[])
     PointCloud::Ptr cloud_0(new PointCloud);
     PointCloud::Ptr cloud_1(new PointCloud);
     pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-    // pcl::visualization::CloudViewer viewer_0("viewer0");
+    pcl::visualization::CloudViewer viewer_0("viewer0");
 
     gca::cuda_color_frame gpu_color_0(rs_cam_0.get_width(), rs_cam_0.get_height());
     gca::cuda_depth_frame gpu_depth_0(rs_cam_0.get_width(), rs_cam_0.get_height());
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
 
     auto detector = gca::movement_detection();
-    gca::visualizer v;
+    // gca::visualizer v;
 
     std::shared_ptr<gca::point_cloud> src_pc;
     std::shared_ptr<gca::point_cloud> tgt_pc;
@@ -109,8 +111,37 @@ int main(int argc, char *argv[])
 
         auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.01f);
         auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 5);
-        pc_remove_noise_0->estimate_normals(0.02f);
+        pc_remove_noise_0->estimate_normals(0.015f);
+        auto objs = pc_remove_noise_0->convex_obj_segmentation(0.02f, pc_remove_noise_0->points_number()/200, 50000);
+        std::cout << objs.size() << std::endl;
 
+        // v.update(pc_remove_noise_0);
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "Total cuda time in milliseconds: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
+
+        auto points_0 = pc_remove_noise_0->download();
+            auto number_of_points = points_0.size();
+            cloud_1->clear();
+            cloud_1->points.resize(number_of_points);
+            for (const auto & obj: objs) {
+                auto c = generateRandomColor();
+                for (const auto & i: obj) {
+                    PointT p;
+                p.x = points_0[i].coordinates.x;
+                p.y = -points_0[i].coordinates.y;
+                p.z = -points_0[i].coordinates.z;
+                p.r = c(0);
+                p.g = c(1);
+                p.b = c(2);
+                cloud_1->points[i] = p;
+                }
+            }
+            viewer_0.showCloud(cloud_1);
+            std::this_thread::sleep_for(1000ms);
+
+        /*
         if (if_first_frame)
         {
             src_pc = pc_remove_noise_0;
@@ -132,7 +163,7 @@ int main(int argc, char *argv[])
         std::cout << "Total cuda time in milliseconds: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
-
+        */
         /*
         detector.update_point_cloud(pc_downsampling_0);
 
@@ -219,7 +250,6 @@ int main(int argc, char *argv[])
             viewer_0.showCloud(cloud_1);
         }
         */
-        v.update(pc_remove_noise_0);
         /*
         auto points_0 = pc_downsampling_0->download();
         auto number_of_points = points_0.size();
@@ -613,7 +643,7 @@ int main(int argc, char *argv[])
         std::cout << "__________________________________________________" << std::endl;
     }
 
-    v.close();
+    // v.close();
 
     return 0;
 }

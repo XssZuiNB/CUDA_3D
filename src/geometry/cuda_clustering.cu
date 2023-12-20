@@ -304,7 +304,7 @@ struct check_if_queue_empty_functor
                                              const gca::counter_t min_cluster_size,
                                              const gca::counter_t max_cluster_size)
 {
-    if (min_cluster_size <= 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
+   if (min_cluster_size < 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
     {
         return ::cudaErrorInvalidValue;
     }
@@ -318,6 +318,7 @@ struct check_if_queue_empty_functor
                                             points, min_bound, max_bound, cluster_tolerance);
     if (err != ::cudaSuccess)
     {
+        check_cuda_error(err, __FILE__, __LINE__);
         return err;
     }
 
@@ -342,10 +343,10 @@ struct check_if_queue_empty_functor
         float3 &n2 = normals_host[p2_idx];
 
         /******************************************************* 0.5 is 10 deg.*/
-        bool condition1 = (dot(n1, d) <= d_norm * cos(M_PI / 2 - 0.5)) &&
-                          (dot(n2, -d) <= d_norm * cos(M_PI / 2 - 0.5));
+        bool condition1 = (dot(n1, d) <= d_norm * cos(M_PI / 2 + 0.1)) &&
+                          (dot(n2, -d) <= d_norm * cos(M_PI / 2 + 0.1));
 
-        bool condition2 = dot(n1, n2) >= 1 - d_norm * cos(M_PI / 2 - 0.5);
+        bool condition2 = dot(n1, n2) >= 1 - d_norm * cos(M_PI / 2 - 0.1);
 
         return condition1 || condition2;
     };

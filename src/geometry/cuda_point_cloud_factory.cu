@@ -104,7 +104,7 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
 {
     auto steps = steps_num;
     auto min_filter_r = min_filter_radius;
-    constexpr auto sigma_space = 80.0f;
+    constexpr auto sigma_space = 8.0f;
     constexpr auto sigma_depth = 100.0f;
 
     auto depth_data = __ldg(&input[index_y * input_width + index_x]);
@@ -120,7 +120,7 @@ __forceinline__ __device__ static float __adaptive_bilateral_filter(
     if (step > steps)
         step = steps;
 
-    auto new_sigma_space = sigma_space + step * 10.0f;
+    auto new_sigma_space = sigma_space + step * 1.0f;
     auto new_sigma_depth = sigma_depth + step * 10.0f;
     auto filter_r = min_filter_r * step;
 
