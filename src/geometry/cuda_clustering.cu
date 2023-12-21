@@ -334,9 +334,8 @@ struct check_if_queue_empty_functor
 
     std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
     gca::index_t cluster = 0;
-
     objs.clear();
-
+    
     auto check_local_convex = [&](gca::index_t p1_idx, gca::index_t p2_idx) -> bool {
         /*paper */
         float3 d = points_host[p2_idx].coordinates - points_host[p1_idx].coordinates;
@@ -345,17 +344,17 @@ struct check_if_queue_empty_functor
         float3 &n1 = normals_host[p1_idx];
         float3 &n2 = normals_host[p2_idx];
 
-        /******************************************************* 0.5 is 10 deg.*/
-        bool condition1 = (dot(n1, d) <= d_norm * cosf(M_PI / 2.0f - 0.02f)) &&
-                          (dot(n2, -d) <= d_norm * cosf(M_PI / 2.0f - 0.02f)) &&
-                          (abs(dot(cross(n1, d), n2)) <= 0.3 * d_norm) &&
-                          (abs(dot(cross(n2, -d), n1)) <= 0.3 * d_norm);
+        /********************************************************/
+        bool condition1 = (dot(n1, d) <= d_norm * cosf(M_PI / 2.0f - 0.1f)) &&
+                          (dot(n2, -d) <= d_norm * cosf(M_PI / 2.0f - 0.1f)) &&
+                          ((dot(cross(n1, d), n2)) <= 0.3 * d_norm) &&
+                          ((dot(cross(n2, -d), n1)) <= 0.3 * d_norm);
 
-        bool condition2 = dot(n1, n2) >= 1 - d_norm * cosf(M_PI / 2.0f - 0.5f);
+        bool condition2 = dot(n1, n2) >= 1 - d_norm * cosf(M_PI / 2.0f - 0.03f);
 
         return condition1 || condition2;
     };
-    auto end = std::chrono::steady_clock::now();
+    
 
     for (gca::index_t i = 0; i < n_points; ++i)
     {
@@ -402,7 +401,7 @@ struct check_if_queue_empty_functor
             ++cluster;
         }
     }
-
+    auto end = std::chrono::steady_clock::now();
     std::cout << " time in milliseconds: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
               << std::endl;
