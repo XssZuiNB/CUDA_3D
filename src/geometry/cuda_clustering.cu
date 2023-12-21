@@ -20,6 +20,8 @@
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 
+#include <atomic>
+#include <future>
 #include <vector>
 
 namespace gca
@@ -304,7 +306,8 @@ struct check_if_queue_empty_functor
                                              const gca::counter_t min_cluster_size,
                                              const gca::counter_t max_cluster_size)
 {
-   if (min_cluster_size < 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
+    auto start = std::chrono::steady_clock::now();
+    if (min_cluster_size < 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
     {
         return ::cudaErrorInvalidValue;
     }
@@ -337,19 +340,22 @@ struct check_if_queue_empty_functor
     auto check_local_convex = [&](gca::index_t p1_idx, gca::index_t p2_idx) -> bool {
         /*paper */
         float3 d = points_host[p2_idx].coordinates - points_host[p1_idx].coordinates;
-        double d_norm = norm(d);
+        float d_norm = norm(d);
 
         float3 &n1 = normals_host[p1_idx];
         float3 &n2 = normals_host[p2_idx];
 
         /******************************************************* 0.5 is 10 deg.*/
-        bool condition1 = (dot(n1, d) <= d_norm * cos(M_PI / 2 + 0.1)) &&
-                          (dot(n2, -d) <= d_norm * cos(M_PI / 2 + 0.1));
+        bool condition1 = (dot(n1, d) <= d_norm * cosf(M_PI / 2.0f - 0.02f)) &&
+                          (dot(n2, -d) <= d_norm * cosf(M_PI / 2.0f - 0.02f)) &&
+                          (abs(dot(cross(n1, d), n2)) <= 0.3 * d_norm) &&
+                          (abs(dot(cross(n2, -d), n1)) <= 0.3 * d_norm);
 
-        bool condition2 = dot(n1, n2) >= 1 - d_norm * cos(M_PI / 2 - 0.1);
+        bool condition2 = dot(n1, n2) >= 1 - d_norm * cosf(M_PI / 2.0f - 0.5f);
 
         return condition1 || condition2;
     };
+    auto end = std::chrono::steady_clock::now();
 
     for (gca::index_t i = 0; i < n_points; ++i)
     {
@@ -358,14 +364,15 @@ struct check_if_queue_empty_functor
             continue;
         }
 
-        thrust::host_vector<gca::index_t> seed_queue;
+        std::vector<gca::index_t> seed_queue;
         seed_queue.reserve(max_cluster_size);
         gca::index_t sq_idx = 0;
         seed_queue.push_back(i);
 
         visited[i] = 1;
 
-        while (sq_idx < static_cast<gca::index_t>(seed_queue.size()))
+        while (sq_idx < static_cast<gca::index_t>(seed_queue.size()) &&
+               static_cast<gca::index_t>(seed_queue.size()) < max_cluster_size)
         {
 
             auto this_p = seed_queue[sq_idx];
@@ -378,22 +385,204 @@ struct check_if_queue_empty_functor
                 if (visited[neighbor])
                     continue;
 
-                if (!check_local_convex(this_p, neighbor))
-                    continue;
-
-                visited[neighbor] = 1;
-                seed_queue.push_back(neighbor);
+                if (check_local_convex(this_p, neighbor))
+                {
+                    visited[neighbor] = 1;
+                    seed_queue.push_back(neighbor);
+                }
             }
 
             ++sq_idx;
         }
 
-        if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
+        if (seed_queue.size() >= min_cluster_size)
         {
-            objs.push_back(seed_queue);
+            thrust::host_vector<gca::index_t> obj(std::move(seed_queue));
+            objs.push_back(std::move(obj));
             ++cluster;
         }
     }
+
+    std::cout << " time in milliseconds: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
+              << std::endl;
+    return ::cudaSuccess;
+}
+
+::cudaError_t cuda_local_convex_segmentation_async(
+    std::vector<thrust::host_vector<gca::index_t>> &objs,
+    const thrust::device_vector<gca::point_t> &points, const thrust::device_vector<float3> &normals,
+    const float3 min_bound, const float3 max_bound, const float cluster_tolerance,
+    const gca::counter_t min_cluster_size, const gca::counter_t max_cluster_size)
+{
+    if (min_cluster_size < 0 || max_cluster_size <= 0 || max_cluster_size < min_cluster_size)
+    {
+        return ::cudaErrorInvalidValue;
+    }
+
+    thrust::device_vector<gca::index_t> all_neighbors;
+    auto n_points = points.size();
+    thrust::device_vector<thrust::pair<gca::index_t, gca::counter_t>>
+        pair_neighbors_begin_idx_and_count(n_points);
+
+    auto err = cuda_search_radius_neighbors(all_neighbors, pair_neighbors_begin_idx_and_count,
+                                            points, min_bound, max_bound, cluster_tolerance);
+    if (err != ::cudaSuccess)
+    {
+        check_cuda_error(err, __FILE__, __LINE__);
+        return err;
+    }
+
+    thrust::host_vector<gca::index_t> all_neighbors_host(all_neighbors);
+    thrust::host_vector<thrust::pair<gca::index_t, gca::counter_t>>
+        pair_neighbors_begin_idx_and_count_host(pair_neighbors_begin_idx_and_count);
+
+    thrust::host_vector<gca::point_t> points_host(points);
+    thrust::host_vector<float3> normals_host(normals);
+
+    std::vector<uint8_t> visited(n_points, 0); // DO NOT use vector<bool>!!!
+    std::atomic<gca::index_t> cluster = 0;
+
+    objs.clear();
+
+    auto check_local_convex = [&](gca::index_t p1_idx, gca::index_t p2_idx) -> bool {
+        /*paper */
+        float3 d = points_host[p2_idx].coordinates - points_host[p1_idx].coordinates;
+        double d_norm = norm(d);
+
+        float3 &n1 = normals_host[p1_idx];
+        float3 &n2 = normals_host[p2_idx];
+
+        /******************************************************* 0.5 is 10 deg.*/
+        bool condition1 = (dot(n1, d) <= d_norm * cos(M_PI / 2 - 0.02)) &&
+                          (dot(n2, -d) <= d_norm * cos(M_PI / 2 - 0.02));
+
+        bool condition2 = dot(n1, n2) >= 1 - d_norm * cos(M_PI / 2 - 0.02);
+
+        return condition1 || condition2;
+    };
+
+    /* Multi threading for new cluster */
+    std::mutex result_vec_mutex;
+    static constexpr uint8_t max_threads = 1;
+    std::future<void> futures[max_threads];
+    std::atomic<bool> async_done[max_threads] = {false};
+    auto make_new_cluster_async = [&](gca::index_t pts_idx, gca::index_t furture_idx) -> void {
+        if (__sync_bool_compare_and_swap(&visited[pts_idx], 0, 1)) // only on gcc!!!
+        {
+            std::vector<gca::index_t> seed_queue;
+            seed_queue.reserve(max_cluster_size);
+            gca::index_t sq_idx = 0;
+            seed_queue.push_back(pts_idx);
+
+            while (sq_idx < static_cast<gca::index_t>(seed_queue.size()))
+            {
+
+                auto this_p = seed_queue[sq_idx];
+                auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[this_p].first;
+                auto n_neighbors = pair_neighbors_begin_idx_and_count_host[this_p].second;
+
+                for (gca::index_t j = 0; j < n_neighbors; ++j)
+                {
+                    auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
+                    if (__sync_bool_compare_and_swap(&visited[neighbor], 1, 1))
+                        continue;
+
+                    if (!check_local_convex(this_p, neighbor))
+                        continue;
+
+                    if (__sync_bool_compare_and_swap(&visited[neighbor], 0, 1))
+                    {
+                        seed_queue.push_back(neighbor);
+                    }
+                }
+
+                ++sq_idx;
+            }
+
+            if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
+            {
+                std::lock_guard<std::mutex> lock(result_vec_mutex);
+                objs.push_back(thrust::host_vector<gca::index_t>(seed_queue));
+                cluster.fetch_add(1);
+            }
+
+            async_done[furture_idx].store(true);
+        }
+    };
+
+    auto start = std::chrono::steady_clock::now();
+    for (gca::index_t i = 0; i < n_points; ++i)
+    {
+        if (__sync_bool_compare_and_swap(&visited[i], 0, 1))
+        {
+            std::vector<gca::index_t> seed_queue;
+            seed_queue.reserve(max_cluster_size);
+            gca::index_t sq_idx = 0;
+            seed_queue.push_back(i);
+
+            while (sq_idx < static_cast<gca::index_t>(seed_queue.size()))
+            {
+                auto this_p = seed_queue[sq_idx];
+                auto neighbor_begin_idx = pair_neighbors_begin_idx_and_count_host[this_p].first;
+                auto n_neighbors = pair_neighbors_begin_idx_and_count_host[this_p].second;
+
+                for (gca::index_t j = 0; j < n_neighbors; ++j)
+                {
+                    auto neighbor = all_neighbors_host[neighbor_begin_idx + j];
+                    if (__sync_bool_compare_and_swap(&visited[neighbor], 1, 1))
+                        continue;
+
+                    if (!check_local_convex(this_p, neighbor))
+                    {
+                        for (gca::index_t f_idx = 0; f_idx < max_threads; ++f_idx)
+                        {
+                            auto &f = futures[f_idx];
+                            if (f.valid() && async_done[f_idx].load())
+                            {
+                                f.get();
+                                f = std::async(make_new_cluster_async, neighbor, f_idx);
+                                async_done[f_idx].store(false);
+                            }
+                            else if (!f.valid())
+                            {
+                                f = std::async(make_new_cluster_async, neighbor, f_idx);
+                                async_done[f_idx].store(false);
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (__sync_bool_compare_and_swap(&visited[neighbor], 0, 1))
+                    {
+                        seed_queue.push_back(neighbor);
+                    }
+                }
+
+                ++sq_idx;
+            }
+
+            if (seed_queue.size() >= min_cluster_size && seed_queue.size() <= max_cluster_size)
+            {
+                std::lock_guard<std::mutex> lock(result_vec_mutex);
+                objs.push_back(thrust::host_vector<gca::index_t>(seed_queue));
+                cluster.fetch_add(1);
+            }
+        }
+    }
+    for (auto &f : futures)
+    {
+        if (f.valid())
+        {
+            f.get();
+        }
+    }
+
+    auto end = std::chrono::steady_clock::now();
+
+    std::cout << " time in milliseconds: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms"
+              << std::endl;
     return ::cudaSuccess;
 }
 } // namespace gca

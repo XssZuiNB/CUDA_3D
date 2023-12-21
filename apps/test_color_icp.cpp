@@ -29,167 +29,188 @@
 
 namespace pcl
 {
-  void removeNaNFPFHFromPointCloud(const pcl::PointCloud<FPFHSignature33> &cloud_in,
-                                   pcl::PointCloud<FPFHSignature33> &cloud_out,
-                                   std::vector<int> &index); // PCL v1.8
+void removeNaNFPFHFromPointCloud(const pcl::PointCloud<FPFHSignature33> &cloud_in,
+                                 pcl::PointCloud<FPFHSignature33> &cloud_out,
+                                 std::vector<int> &index); // PCL v1.8
 
-  void removeNaNSHOTFromPointCloud(const pcl::PointCloud<SHOT352> &cloud_in,
-                                   pcl::PointCloud<SHOT352> &cloud_out,
-                                   std::vector<int> &index); // PCL v1.8
+void removeNaNSHOTFromPointCloud(const pcl::PointCloud<SHOT352> &cloud_in,
+                                 pcl::PointCloud<SHOT352> &cloud_out,
+                                 std::vector<int> &index); // PCL v1.8
 
-  void removeNaNSHOTColorFromPointCloud(const pcl::PointCloud<SHOT1344> &cloud_in,
-                                        pcl::PointCloud<SHOT1344> &cloud_out,
-                                        std::vector<int> &index); // PCL v1.8
+void removeNaNSHOTColorFromPointCloud(const pcl::PointCloud<SHOT1344> &cloud_in,
+                                      pcl::PointCloud<SHOT1344> &cloud_out,
+                                      std::vector<int> &index); // PCL v1.8
 
-  template <typename PointT>
-  void removePointsFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
-                                  pcl::PointCloud<PointT> &cloud_out,
-                                  std::vector<int> &index);
+template <typename PointT>
+void removePointsFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
+                                pcl::PointCloud<PointT> &cloud_out, std::vector<int> &index);
 
-  template <typename PointT>
-  void removeNaNFromPointCloudBruteForce(const pcl::PointCloud<PointT> &cloud_in,
-                                         pcl::PointCloud<PointT> &cloud_out,
-                                         std::vector<int> &index);
+template <typename PointT>
+void removeNaNFromPointCloudBruteForce(const pcl::PointCloud<PointT> &cloud_in,
+                                       pcl::PointCloud<PointT> &cloud_out, std::vector<int> &index);
 
-  template <typename PointT>
-  void removeNaNRGBFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
-                                  pcl::PointCloud<PointT> &cloud_out,
-                                  std::vector<int> &index);
-}
+template <typename PointT>
+void removeNaNRGBFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
+                                pcl::PointCloud<PointT> &cloud_out, std::vector<int> &index);
+} // namespace pcl
 
 void pcl::removeNaNFPFHFromPointCloud(const pcl::PointCloud<FPFHSignature33> &cloud_in,
                                       pcl::PointCloud<FPFHSignature33> &cloud_out,
                                       std::vector<int> &index)
 {
-  // If the clouds are not the same, prepare the output
-  if (&cloud_in != &cloud_out)
-  {
-    cloud_out.header = cloud_in.header;
-    cloud_out.points.resize(cloud_in.points.size());
-  }
-  // Reserve enough space for the indices
-  index.resize(cloud_in.points.size());
-  size_t j = 0;
-
-  // If the data is dense, we don't need to check for NaN
-  if (cloud_in.is_dense)
-  {
-    // Simply copy the data
-    cloud_out = cloud_in;
-    for (j = 0; j < cloud_out.points.size(); ++j)
-      index[j] = static_cast<int>(j);
-  }
-  else
-  {
-    for (size_t i = 0; i < cloud_in.points.size(); ++i)
+    // If the clouds are not the same, prepare the output
+    if (&cloud_in != &cloud_out)
     {
-      if (!pcl_isfinite(cloud_in.points[i].histogram[0])) // PCL v1.8
-        continue;
-      cloud_out.points[j] = cloud_in.points[i];
-      index[j] = static_cast<int>(i);
-      j++;
+        cloud_out.header = cloud_in.header;
+        cloud_out.points.resize(cloud_in.points.size());
     }
-    if (j != cloud_in.points.size())
+    // Reserve enough space for the indices
+    index.resize(cloud_in.points.size());
+    size_t j = 0;
+
+    // If the data is dense, we don't need to check for NaN
+    if (cloud_in.is_dense)
     {
-      // Resize to the correct size
-      cloud_out.points.resize(j);
-      index.resize(j);
+        // Simply copy the data
+        cloud_out = cloud_in;
+        for (j = 0; j < cloud_out.points.size(); ++j)
+            index[j] = static_cast<int>(j);
     }
+    else
+    {
+        for (size_t i = 0; i < cloud_in.points.size(); ++i)
+        {
+            if (!pcl_isfinite(cloud_in.points[i].histogram[0])) // PCL v1.8
+                continue;
+            cloud_out.points[j] = cloud_in.points[i];
+            index[j] = static_cast<int>(i);
+            j++;
+        }
+        if (j != cloud_in.points.size())
+        {
+            // Resize to the correct size
+            cloud_out.points.resize(j);
+            index.resize(j);
+        }
 
-    cloud_out.height = 1;
-    cloud_out.width = static_cast<uint32_t>(j);
+        cloud_out.height = 1;
+        cloud_out.width = static_cast<uint32_t>(j);
 
-    // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
-    cloud_out.is_dense = true;
-  }
+        // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
+        cloud_out.is_dense = true;
+    }
 }
 
 void pcl::removeNaNSHOTFromPointCloud(const pcl::PointCloud<SHOT352> &cloud_in,
-                                      pcl::PointCloud<SHOT352> &cloud_out,
-                                      std::vector<int> &index)
+                                      pcl::PointCloud<SHOT352> &cloud_out, std::vector<int> &index)
 {
-  // If the clouds are not the same, prepare the output
-  if (&cloud_in != &cloud_out)
-  {
-    cloud_out.header = cloud_in.header;
-    cloud_out.points.resize(cloud_in.points.size());
-  }
-  // Reserve enough space for the indices
-  index.resize(cloud_in.points.size());
-  size_t j = 0;
-
-  // If the data is dense, we don't need to check for NaN
-  if (cloud_in.is_dense)
-  {
-    // Simply copy the data
-    cloud_out = cloud_in;
-    for (j = 0; j < cloud_out.points.size(); ++j)
-      index[j] = static_cast<int>(j);
-  }
-  else
-  {
-    for (size_t i = 0; i < cloud_in.points.size(); ++i)
+    // If the clouds are not the same, prepare the output
+    if (&cloud_in != &cloud_out)
     {
-      if (!pcl_isfinite(cloud_in.points[i].descriptor[0]) || // PCL v1.8
-          !pcl_isfinite(cloud_in.points[i].rf[0]))           // PCL v1.8
-        continue;
-      cloud_out.points[j] = cloud_in.points[i];
-      index[j] = static_cast<int>(i);
-      j++;
+        cloud_out.header = cloud_in.header;
+        cloud_out.points.resize(cloud_in.points.size());
     }
-    if (j != cloud_in.points.size())
+    // Reserve enough space for the indices
+    index.resize(cloud_in.points.size());
+    size_t j = 0;
+
+    // If the data is dense, we don't need to check for NaN
+    if (cloud_in.is_dense)
     {
-      // Resize to the correct size
-      cloud_out.points.resize(j);
-      index.resize(j);
+        // Simply copy the data
+        cloud_out = cloud_in;
+        for (j = 0; j < cloud_out.points.size(); ++j)
+            index[j] = static_cast<int>(j);
     }
+    else
+    {
+        for (size_t i = 0; i < cloud_in.points.size(); ++i)
+        {
+            if (!pcl_isfinite(cloud_in.points[i].descriptor[0]) || // PCL v1.8
+                !pcl_isfinite(cloud_in.points[i].rf[0]))           // PCL v1.8
+                continue;
+            cloud_out.points[j] = cloud_in.points[i];
+            index[j] = static_cast<int>(i);
+            j++;
+        }
+        if (j != cloud_in.points.size())
+        {
+            // Resize to the correct size
+            cloud_out.points.resize(j);
+            index.resize(j);
+        }
 
-    cloud_out.height = 1;
-    cloud_out.width = static_cast<uint32_t>(j);
+        cloud_out.height = 1;
+        cloud_out.width = static_cast<uint32_t>(j);
 
-    // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
-    cloud_out.is_dense = true;
-  }
+        // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
+        cloud_out.is_dense = true;
+    }
 }
 
 void pcl::removeNaNSHOTColorFromPointCloud(const pcl::PointCloud<SHOT1344> &cloud_in,
                                            pcl::PointCloud<SHOT1344> &cloud_out,
                                            std::vector<int> &index)
 {
-  // If the clouds are not the same, prepare the output
-  if (&cloud_in != &cloud_out)
-  {
-    cloud_out.header = cloud_in.header;
-    cloud_out.points.resize(cloud_in.points.size());
-  }
-  // Reserve enough space for the indices
-  index.resize(cloud_in.points.size());
-  size_t j = 0;
-
-  // If the data is dense, we don't need to check for NaN
-  if (cloud_in.is_dense)
-  {
-    // Simply copy the data
-    cloud_out = cloud_in;
-    for (j = 0; j < cloud_out.points.size(); ++j)
-      index[j] = static_cast<int>(j);
-  }
-  else
-  {
-    for (size_t i = 0; i < cloud_in.points.size(); ++i)
+    // If the clouds are not the same, prepare the output
+    if (&cloud_in != &cloud_out)
     {
-      if (!pcl_isfinite(cloud_in.points[i].descriptor[0]) || // PCL v1.8
-          !pcl_isfinite(cloud_in.points[i].rf[0]))           // PCL v1.8
-        continue;
-      cloud_out.points[j] = cloud_in.points[i];
-      index[j] = static_cast<int>(i);
-      j++;
+        cloud_out.header = cloud_in.header;
+        cloud_out.points.resize(cloud_in.points.size());
+    }
+    // Reserve enough space for the indices
+    index.resize(cloud_in.points.size());
+    size_t j = 0;
+
+    // If the data is dense, we don't need to check for NaN
+    if (cloud_in.is_dense)
+    {
+        // Simply copy the data
+        cloud_out = cloud_in;
+        for (j = 0; j < cloud_out.points.size(); ++j)
+            index[j] = static_cast<int>(j);
+    }
+    else
+    {
+        for (size_t i = 0; i < cloud_in.points.size(); ++i)
+        {
+            if (!pcl_isfinite(cloud_in.points[i].descriptor[0]) || // PCL v1.8
+                !pcl_isfinite(cloud_in.points[i].rf[0]))           // PCL v1.8
+                continue;
+            cloud_out.points[j] = cloud_in.points[i];
+            index[j] = static_cast<int>(i);
+            j++;
+        }
+        if (j != cloud_in.points.size())
+        {
+            // Resize to the correct size
+            cloud_out.points.resize(j);
+            index.resize(j);
+        }
+
+        cloud_out.height = 1;
+        cloud_out.width = static_cast<uint32_t>(j);
+
+        // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
+        cloud_out.is_dense = true;
+    }
+}
+
+template <typename PointT>
+void pcl::removePointsFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
+                                     pcl::PointCloud<PointT> &cloud_out, std::vector<int> &index)
+{
+    // Copy data
+    size_t j = 0;
+    for (size_t i : index)
+    {
+        cloud_out.points[j] = cloud_in.points[i];
+        j++;
     }
     if (j != cloud_in.points.size())
     {
-      // Resize to the correct size
-      cloud_out.points.resize(j);
-      index.resize(j);
+        // Resize to the correct size
+        cloud_out.points.resize(j);
     }
 
     cloud_out.height = 1;
@@ -197,32 +218,6 @@ void pcl::removeNaNSHOTColorFromPointCloud(const pcl::PointCloud<SHOT1344> &clou
 
     // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
     cloud_out.is_dense = true;
-  }
-}
-
-template <typename PointT>
-void pcl::removePointsFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
-                                     pcl::PointCloud<PointT> &cloud_out,
-                                     std::vector<int> &index)
-{
-  // Copy data
-  size_t j = 0;
-  for (size_t i : index)
-  {
-    cloud_out.points[j] = cloud_in.points[i];
-    j++;
-  }
-  if (j != cloud_in.points.size())
-  {
-    // Resize to the correct size
-    cloud_out.points.resize(j);
-  }
-
-  cloud_out.height = 1;
-  cloud_out.width = static_cast<uint32_t>(j);
-
-  // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
-  cloud_out.is_dense = true;
 }
 
 template <typename PointT>
@@ -230,77 +225,75 @@ void pcl::removeNaNFromPointCloudBruteForce(const pcl::PointCloud<PointT> &cloud
                                             pcl::PointCloud<PointT> &cloud_out,
                                             std::vector<int> &index)
 {
-  // If the clouds are not the same, prepare the output
-  if (&cloud_in != &cloud_out)
-  {
-    cloud_out.header = cloud_in.header;
-    cloud_out.points.resize(cloud_in.points.size());
-  }
-  // Reserve enough space for the indices
-  index.resize(cloud_in.points.size());
-  size_t j = 0;
+    // If the clouds are not the same, prepare the output
+    if (&cloud_in != &cloud_out)
+    {
+        cloud_out.header = cloud_in.header;
+        cloud_out.points.resize(cloud_in.points.size());
+    }
+    // Reserve enough space for the indices
+    index.resize(cloud_in.points.size());
+    size_t j = 0;
 
-  // Check NaN anyway, regardless of the density of the data
-  for (size_t i = 0; i < cloud_in.points.size(); ++i)
-  {
-    if (!pcl_isfinite(cloud_in.points[i].x) ||
-        !pcl_isfinite(cloud_in.points[i].y) ||
-        !pcl_isfinite(cloud_in.points[i].z))
-      continue;
-    cloud_out.points[j] = cloud_in.points[i];
-    index[j] = static_cast<int>(i);
-    j++;
-  }
-  if (j != cloud_in.points.size())
-  {
-    // Resize to the correct size
-    cloud_out.points.resize(j);
-    index.resize(j);
-  }
+    // Check NaN anyway, regardless of the density of the data
+    for (size_t i = 0; i < cloud_in.points.size(); ++i)
+    {
+        if (!pcl_isfinite(cloud_in.points[i].x) || !pcl_isfinite(cloud_in.points[i].y) ||
+            !pcl_isfinite(cloud_in.points[i].z))
+            continue;
+        cloud_out.points[j] = cloud_in.points[i];
+        index[j] = static_cast<int>(i);
+        j++;
+    }
+    if (j != cloud_in.points.size())
+    {
+        // Resize to the correct size
+        cloud_out.points.resize(j);
+        index.resize(j);
+    }
 
-  cloud_out.height = 1;
-  cloud_out.width = static_cast<uint32_t>(j);
+    cloud_out.height = 1;
+    cloud_out.width = static_cast<uint32_t>(j);
 
-  // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
-  cloud_out.is_dense = true;
+    // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
+    cloud_out.is_dense = true;
 }
 
 template <typename PointT>
 void pcl::removeNaNRGBFromPointCloud(const pcl::PointCloud<PointT> &cloud_in,
-                                     pcl::PointCloud<PointT> &cloud_out,
-                                     std::vector<int> &index)
+                                     pcl::PointCloud<PointT> &cloud_out, std::vector<int> &index)
 {
-  // If the clouds are not the same, prepare the output
-  if (&cloud_in != &cloud_out)
-  {
-    cloud_out.header = cloud_in.header;
-    cloud_out.points.resize(cloud_in.points.size());
-  }
-  // Reserve enough space for the indices
-  index.resize(cloud_in.points.size());
-  size_t j = 0;
+    // If the clouds are not the same, prepare the output
+    if (&cloud_in != &cloud_out)
+    {
+        cloud_out.header = cloud_in.header;
+        cloud_out.points.resize(cloud_in.points.size());
+    }
+    // Reserve enough space for the indices
+    index.resize(cloud_in.points.size());
+    size_t j = 0;
 
-  // Check NaN anyway, regardless of the density of the data
-  for (size_t i = 0; i < cloud_in.points.size(); ++i)
-  {
-    if (cloud_in.points[i].rgba == 0)
-      continue;
-    cloud_out.points[j] = cloud_in.points[i];
-    index[j] = static_cast<int>(i);
-    j++;
-  }
-  if (j != cloud_in.points.size())
-  {
-    // Resize to the correct size
-    cloud_out.points.resize(j);
-    index.resize(j);
-  }
+    // Check NaN anyway, regardless of the density of the data
+    for (size_t i = 0; i < cloud_in.points.size(); ++i)
+    {
+        if (cloud_in.points[i].rgba == 0)
+            continue;
+        cloud_out.points[j] = cloud_in.points[i];
+        index[j] = static_cast<int>(i);
+        j++;
+    }
+    if (j != cloud_in.points.size())
+    {
+        // Resize to the correct size
+        cloud_out.points.resize(j);
+        index.resize(j);
+    }
 
-  cloud_out.height = 1;
-  cloud_out.width = static_cast<uint32_t>(j);
+    cloud_out.height = 1;
+    cloud_out.width = static_cast<uint32_t>(j);
 
-  // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
-  cloud_out.is_dense = true;
+    // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
+    cloud_out.is_dense = true;
 }
 
 int loadPointCloud(const std::string &filename, pcl::PointCloud<pcl::PointXYZRGB> &cloud)
@@ -342,11 +335,11 @@ void downSampleVoxelGrids(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
 
 void removeNaNPoints(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 {
-  std::vector<int> nan_idx;
-  pcl::removeNaNFromPointCloudBruteForce(*cloud, *cloud, nan_idx);
-  std::cout << "Contained " << cloud->size() << " points after removing NaN points\n";
-  pcl::removeNaNRGBFromPointCloud(*cloud, *cloud, nan_idx);
-  std::cout << "Contained " << cloud->size() << " points after removing NaN RGB points\n";
+    std::vector<int> nan_idx;
+    pcl::removeNaNFromPointCloudBruteForce(*cloud, *cloud, nan_idx);
+    std::cout << "Contained " << cloud->size() << " points after removing NaN points\n";
+    pcl::removeNaNRGBFromPointCloud(*cloud, *cloud, nan_idx);
+    std::cout << "Contained " << cloud->size() << " points after removing NaN RGB points\n";
 }
 
 int main(int argc, char *argv[])
@@ -354,13 +347,13 @@ int main(int argc, char *argv[])
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr src(new pcl::PointCloud<pcl::PointXYZRGB>());
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr tgt(new pcl::PointCloud<pcl::PointXYZRGB>());
 
-    if (!loadPointCloud("../../data/cloud_bin_00.pcd", *src))
+    if (!loadPointCloud("../../data/cloud_bin_01.pcd", *src))
     {
         std::cout << "Cant read source!" << std::endl;
         return 1;
     }
 
-    if (!loadPointCloud("../../data/cloud_bin_00_easy.pcd", *tgt))
+    if (!loadPointCloud("../../data/cloud_bin_02.pcd", *tgt))
     {
         std::cout << "Cant read target!" << std::endl;
         return 1;
@@ -413,7 +406,7 @@ int main(int argc, char *argv[])
     auto down_sample_src = src_device->voxel_grid_down_sample(0.02f);
     auto down_sample_tgt = tgt_device->voxel_grid_down_sample(0.02f);
     down_sample_tgt->estimate_normals(0.04f);
-    
+
     gca::color_icp color_icp(100, 0.08f, 0.04f);
     color_icp.set_source_point_cloud(down_sample_src);
     color_icp.set_target_point_cloud(down_sample_tgt);

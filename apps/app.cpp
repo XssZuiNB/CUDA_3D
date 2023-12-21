@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
     cuda_print_devices();
     cuda_warm_up_gpu(0);
 
-    auto rs_cam_0 = gca::realsense_device(0, 640, 480, 30);
+    auto rs_cam_0 = gca::realsense_device(1, 640, 480, 30);
     if (!rs_cam_0.device_start())
         return 1;
 
@@ -101,34 +101,37 @@ int main(int argc, char *argv[])
         rs_cam_0.receive_data();
         auto color_0 = rs_cam_0.get_color_raw_data();
         auto depth_0 = rs_cam_0.get_depth_raw_data();
-
         auto start = std::chrono::steady_clock::now();
         gpu_color_0.upload((uint8_t *)color_0, rs_cam_0.get_width(), rs_cam_0.get_height());
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 1.5);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 4.5);
 
-        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.01f);
-        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 5);
-        pc_remove_noise_0->estimate_normals(0.015f);
-        auto objs = pc_remove_noise_0->convex_obj_segmentation(0.02f, pc_remove_noise_0->points_number()/200, 50000);
+        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.035f);
+        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.04f, 3);
+        pc_remove_noise_0->estimate_normals(0.07f);
+
+        auto objs = pc_remove_noise_0->convex_obj_segmentation(0.045f, 100, 500000);
+        auto end = std::chrono::steady_clock::now();
         std::cout << objs.size() << std::endl;
 
         // v.update(pc_remove_noise_0);
-        auto end = std::chrono::steady_clock::now();
+
         std::cout << "Total cuda time in milliseconds: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
         auto points_0 = pc_remove_noise_0->download();
-            auto number_of_points = points_0.size();
-            cloud_1->clear();
-            cloud_1->points.resize(number_of_points);
-            for (const auto & obj: objs) {
-                auto c = generateRandomColor();
-                for (const auto & i: obj) {
-                    PointT p;
+        auto number_of_points = points_0.size();
+        cloud_1->clear();
+        cloud_1->points.resize(number_of_points);
+        for (const auto &obj : objs)
+        {
+            auto c = generateRandomColor();
+            for (const auto &i : obj)
+            {
+                PointT p;
                 p.x = points_0[i].coordinates.x;
                 p.y = -points_0[i].coordinates.y;
                 p.z = -points_0[i].coordinates.z;
@@ -136,10 +139,10 @@ int main(int argc, char *argv[])
                 p.g = c(1);
                 p.b = c(2);
                 cloud_1->points[i] = p;
-                }
             }
-            viewer_0.showCloud(cloud_1);
-            std::this_thread::sleep_for(1000ms);
+        }
+        viewer_0.showCloud(cloud_1);
+        std::this_thread::sleep_for(1000ms);
 
         /*
         if (if_first_frame)
