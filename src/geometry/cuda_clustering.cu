@@ -352,7 +352,7 @@ struct check_if_queue_empty_functor
 
         bool condition2 = dot(n1, n2) >= 1 - d_norm * cosf(M_PI / 2.0f - 0.03f);
 
-        return condition1 || condition2;
+        return (condition1 || condition2);
     };
     
 
@@ -369,7 +369,7 @@ struct check_if_queue_empty_functor
         seed_queue.push_back(i);
 
         visited[i] = 1;
-
+        
         while (sq_idx < static_cast<gca::index_t>(seed_queue.size()) &&
                static_cast<gca::index_t>(seed_queue.size()) < max_cluster_size)
         {
