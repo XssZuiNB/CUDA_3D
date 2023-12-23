@@ -109,16 +109,16 @@ int main(int argc, char *argv[])
             gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 1.5);
 
         auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.01f);
-        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 5);
+        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 3);
         pc_remove_noise_0->estimate_normals(0.03f);
 
-        auto objs = pc_remove_noise_0->convex_obj_segmentation(0.011f, pc_remove_noise_0->points_number() / 500, pc_remove_noise_0->points_number() / 2);
+        auto objs = pc_remove_noise_0->convex_obj_segmentation(0.0105f, pc_remove_noise_0->points_number() / 500, pc_remove_noise_0->points_number() / 2);
         auto end = std::chrono::steady_clock::now();
         std::cout << objs.size() << std::endl;
 
         // v.update(pc_remove_noise_0);
         std::cout << "pc size: "
-                  << pc_remove_noise_0->points_number() << std::endl;
+                  << pc_0->points_number() << std::endl;
         std::cout << "Total cuda time in milliseconds: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
