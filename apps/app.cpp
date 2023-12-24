@@ -108,17 +108,18 @@ int main(int argc, char *argv[])
         auto pc_0 =
             gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 1.5);
 
-        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.01f);
-        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.015f, 3);
+        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.005f);
+        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.007f, 3);
         pc_remove_noise_0->estimate_normals(0.03f);
 
-        auto objs = pc_remove_noise_0->convex_obj_segmentation(0.0105f, pc_remove_noise_0->points_number() / 500, pc_remove_noise_0->points_number() / 2);
+        auto objs = pc_remove_noise_0->convex_obj_segmentation(
+            0.007f, pc_remove_noise_0->points_number() / 500,
+            pc_remove_noise_0->points_number() / 2);
         auto end = std::chrono::steady_clock::now();
         std::cout << objs.size() << std::endl;
 
         // v.update(pc_remove_noise_0);
-        std::cout << "pc size: "
-                  << pc_0->points_number() << std::endl;
+        std::cout << "pc size: " << pc_0->points_number() << std::endl;
         std::cout << "Total cuda time in milliseconds: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
@@ -632,17 +633,35 @@ int main(int argc, char *argv[])
         std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
         */
         /* Voxel Grid PCL */
-        /*
+        auto points_1 = pc_0->download();
+        number_of_points = points_1.size();
+
+        cloud_0->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_1[i].coordinates.x;
+            p.y = -points_1[i].coordinates.y;
+            p.z = -points_1[i].coordinates.z;
+            p.r = points_1[i].color.r * 255;
+            p.g = points_1[i].color.g * 255;
+            p.b = points_1[i].color.b * 255;
+            cloud_0->points[i] = p;
+        }
+
+        start = std::chrono::steady_clock::now();
         pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered(
             new pcl::PointCloud<pcl::PointXYZRGBA>);
 
         pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
         sor.setInputCloud(cloud_0);
-        sor.setLeafSize(0.01f, 0.01f, 0.01f);
+        sor.setLeafSize(0.005f, 0.005f, 0.005f);
         sor.filter(*cloud_filtered);
-
+        end = std::chrono::steady_clock::now();
+        std::cout << "PCL radius outlier removal time in milliseconds: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
         std::cout << "Filtered cloud size: " << cloud_filtered->size() << std::endl;
-        */
 
         std::cout << "__________________________________________________" << std::endl;
     }
