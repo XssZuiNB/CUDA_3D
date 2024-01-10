@@ -88,47 +88,212 @@ int main(int argc, char *argv[])
     gca::cuda_depth_frame gpu_depth_0(rs_cam_0.get_width(), rs_cam_0.get_height());
 
     bool if_first_frame = true;
-    gca::color_icp color_icp(10, 0.05f, 0.02f);
+    gca::color_icp color_icp(10, 0.05f, 0.05f);
     std::shared_ptr<gca::point_cloud> last_frame_ptr;
 
-    auto detector = gca::movement_detection();
+    // auto detector = gca::movement_detection();
     // gca::visualizer v;
 
     std::shared_ptr<gca::point_cloud> src_pc;
     std::shared_ptr<gca::point_cloud> tgt_pc;
+
+    std::vector<float> plane_model;
+
+    std::shared_ptr<gca::point_cloud> last_frame_without_plane;
+
+    std::shared_ptr<gca::point_cloud> result = std::make_shared<gca::point_cloud>();
+    mat4x4 transform_m(mat4x4::get_identity());
+    uint8_t counter = 0;
+
+    std::vector<std::shared_ptr<gca::point_cloud>> objs;
+    std::vector<float3> centroid_obj;
+
     while (!exit_requested)
     {
         rs_cam_0.receive_data();
         auto color_0 = rs_cam_0.get_color_raw_data();
         auto depth_0 = rs_cam_0.get_depth_raw_data();
+
         auto start = std::chrono::steady_clock::now();
         gpu_color_0.upload((uint8_t *)color_0, rs_cam_0.get_width(), rs_cam_0.get_height());
         gpu_depth_0.upload((uint16_t *)depth_0, rs_cam_0.get_width(), rs_cam_0.get_height());
 
         auto pc_0 =
-            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.3, 1.5);
+            gca::point_cloud::create_from_rgbd(gpu_depth_0, gpu_color_0, cu_param_0, 0.2f, 2.5f);
 
-        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.005f);
-        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.007f, 3);
-        pc_remove_noise_0->estimate_normals(0.03f);
+        auto pc_downsampling_0 = pc_0->voxel_grid_down_sample(0.008f);
 
-        auto objs = pc_remove_noise_0->convex_obj_segmentation(
-            0.007f, pc_remove_noise_0->points_number() / 500,
-            pc_remove_noise_0->points_number() / 2);
+        auto pc_remove_noise_0 = pc_downsampling_0->radius_outlier_removal(0.01f, 4);
+
+        pc_remove_noise_0->estimate_normals(0.04);
+
+        /*
+        if (if_first_frame)
+        {
+            // RANSAC Seg plane
+            auto points_0 = pc_remove_noise_0->download();
+            auto number_of_points = points_0.size();
+            cloud_1->clear();
+            cloud_1->points.resize(number_of_points);
+            for (size_t i = 0; i < number_of_points; i++)
+            {
+                PointT p;
+                p.x = points_0[i].coordinates.x;
+                p.y = points_0[i].coordinates.y;
+                p.z = points_0[i].coordinates.z;
+
+                p.r = points_0[i].color.r * 255;
+                p.g = points_0[i].color.g * 255;
+                p.b = points_0[i].color.b * 255;
+
+                cloud_1->points[i] = p;
+            }
+
+            pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+            pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+            pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
+
+            seg.setOptimizeCoefficients(true);
+            seg.setModelType(pcl::SACMODEL_PLANE);
+            seg.setMethodType(pcl::SAC_RANSAC);
+            seg.setMaxIterations(1000);
+            seg.setDistanceThreshold(0.01);
+
+            seg.setInputCloud(cloud_1);
+            seg.segment(*inliers, *coefficients);
+
+            plane_model.swap(coefficients->values); // store the plane model
+
+            last_frame_without_plane = pc_remove_noise_0->remove_plane(plane_model);
+
+            last_frame_without_plane->estimate_normals(0.03);
+
+            auto objs_this = last_frame_without_plane->convex_obj_segmentation(
+                0.02f, 400, last_frame_without_plane->points_number());
+
+            for (const auto &obj_this : objs_this)
+            {
+                auto obj_pc = last_frame_without_plane->create_new_by_index(obj_this);
+                objs.push_back(obj_pc);
+            }
+
+            if_first_frame = false;
+            continue;
+        }
+
+        auto pc_after_plane_remove = pc_remove_noise_0->remove_plane(plane_model);
+
+        pc_after_plane_remove->estimate_normals(0.03);
+
+        color_icp.set_target_point_cloud(pc_after_plane_remove);
+
+        for (const auto &obj : objs)
+        {
+            color_icp.set_source_point_cloud(obj);
+            color_icp.align();
+            obj->transform(color_icp.get_final_transformation_matrix());
+        }
+
+        auto objs_this = pc_after_plane_remove->convex_obj_segmentation(
+            0.015f, 400, pc_after_plane_remove->points_number());
+
+        std::vector<std::shared_ptr<gca::point_cloud>> this_objs;
+        std::vector<uint8_t> associated(objs_this.size(), 0);
+
+        for (const auto &obj_this : objs_this)
+        {
+            auto obj_pc = pc_after_plane_remove->create_new_by_index(obj_this);
+            this_objs.push_back(obj_pc);
+        }
+
+        // association
+
+        for (size_t i = 0; i < objs.size(); i++)
+        {
+            gca::index_t associated_idx = -1;
+            float3 centroid = objs[i]->get_centroid();
+            float min_distance = FLT_MAX;
+
+            for (size_t j = 0; j < this_objs.size(); j++)
+            {
+                auto dist(distance(centroid, this_objs[j]->get_centroid()));
+
+                if (dist < min_distance)
+                {
+                    min_distance = dist;
+                    associated_idx = j;
+                }
+            }
+
+            *objs[i] += *this_objs[associated_idx];
+            objs[i] = objs[i]->voxel_grid_down_sample(0.01);
+            associated[associated_idx] = 1;
+        }
+
+        for (size_t i = 0; i < this_objs.size(); i++)
+        {
+            if (associated[i] == 0)
+            {
+                objs.push_back(this_objs[i]);
+            }
+        }
+
+        std::cout << "obj num " << objs.size() << std::endl;
+
         auto end = std::chrono::steady_clock::now();
-        std::cout << objs.size() << std::endl;
-
-        // v.update(pc_remove_noise_0);
-        std::cout << "pc size: " << pc_0->points_number() << std::endl;
-        std::cout << "Total cuda time in milliseconds: "
+        std::cout << "whole "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
 
+        std::shared_ptr<gca::point_cloud> this_res = std::make_shared<gca::point_cloud>();
+        for (const auto &obj : objs)
+        {
+            *this_res += *obj;
+        }
+
+        auto points_1 = this_res->download();
+        auto number_of_points = points_1.size();
+        cloud_0->clear();
+        cloud_0->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_1[i].coordinates.x;
+            p.y = -points_1[i].coordinates.y;
+            p.z = -points_1[i].coordinates.z;
+
+            p.r = points_1[i].color.r * 255;
+            p.g = points_1[i].color.g * 255;
+            p.b = points_1[i].color.b * 255;
+
+            cloud_0->points[i] = p;
+        }
+        viewer_0.showCloud(cloud_0);
+        */
+        /*
+        if (if_first_frame)
+        {
+            src_pc = pc_remove_noise_0;
+            if_first_frame = false;
+            continue;
+        }
+
+        color_icp.set_source_point_cloud(src_pc);
+        color_icp.set_target_point_cloud(pc_remove_noise_0);
+        auto res = color_icp.get_abs_residual();
+
+        auto segments = pc_remove_noise_0->convex_obj_segmentation(
+            0.009f, 5, pc_remove_noise_0->points_number());
+
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "whole "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
         auto points_0 = pc_remove_noise_0->download();
         auto number_of_points = points_0.size();
         cloud_1->clear();
         cloud_1->points.resize(number_of_points);
-        for (const auto &obj : objs)
+        for (const auto &obj : segments)
         {
             auto c = generateRandomColor();
             for (const auto &i : obj)
@@ -145,30 +310,308 @@ int main(int argc, char *argv[])
         }
         viewer_0.showCloud(cloud_1);
         std::this_thread::sleep_for(1000ms);
+        */
+        /* 3D reconstruction */
 
+        if (if_first_frame)
+        {
+            result = pc_remove_noise_0;
+            src_pc = pc_remove_noise_0;
+            if_first_frame = false;
+            continue;
+        }
+        if (counter == 0)
+            color_icp.set_source_point_cloud(result);
+        else
+            color_icp.set_source_point_cloud(src_pc);
+        color_icp.set_target_point_cloud(pc_remove_noise_0);
+        color_icp.align();
+        transform_m = color_icp.get_final_transformation_matrix();
+        float cos_theta = 0.5 * (transform_m(0, 0) + transform_m(1, 1) + transform_m(2, 2) - 1);
+        // Translation square
+        float translation_square = transform_m(0, 3) * transform_m(0, 3) +
+                                   transform_m(1, 3) * transform_m(1, 3) +
+                                   transform_m(2, 3) * transform_m(2, 3);
+
+        if (cos_theta <= 0.999999f || translation_square >= 0.000001)
+        {
+            result->transform(transform_m);
+            *result += *pc_remove_noise_0;
+            counter++;
+            // auto new_result = result->voxel_grid_down_sample(0.004);
+            // result = new_result;
+        }
+
+        if (counter == 5)
+        {
+            counter = 0;
+            auto new_result = result->voxel_grid_down_sample(0.008); // color gradient 0.02
+            result = new_result;
+        }
+
+        src_pc = pc_remove_noise_0;
+
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "align: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
+        auto points_0 = result->download();
+        auto number_of_points = points_0.size();
+        cloud_1->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_0[i].coordinates.x;
+            p.y = -points_0[i].coordinates.y;
+            p.z = -points_0[i].coordinates.z;
+            p.r = points_0[i].color.r * 255;
+            p.g = points_0[i].color.g * 255;
+            p.b = points_0[i].color.b * 255;
+            cloud_1->points[i] = p;
+        }
+        viewer_0.showCloud(cloud_1);
+
+        /*app*/
         /*
         if (if_first_frame)
         {
             src_pc = pc_remove_noise_0;
             if_first_frame = false;
-            auto objs = src_pc->convex_obj_segmentation(0.3, 50, 50000);
-            std::cout << objs.size() << std::endl;
             continue;
         }
+
         color_icp.set_source_point_cloud(src_pc);
         // auto cluster = pc_downsampling_0->euclidean_clustering(0.04f, 100, 200000);
-
+        auto segments = src_pc->convex_obj_segmentation(0.009f, 5, src_pc->points_number());
+        std::cout << "segments number: " << segments.size() << std::endl;
         color_icp.set_target_point_cloud(pc_remove_noise_0);
-        color_icp.align();
+
+        auto residual_and_mean = color_icp.get_abs_residual_host();
+        if (residual_and_mean.first.size() == 0)
+        {
+            continue;
+        }
+
+        auto residual = residual_and_mean.first;
+
+        std::vector<float> residual_of_segment(segments.size());
+        for (size_t i = 0; i < segments.size(); ++i)
+        {
+            auto &segment = segments[i];
+            float res = 0.0f;
+
+            for (size_t i = 0; i < segment.size(); i++)
+            {
+                res += residual[segment[i]];
+            }
+            residual_of_segment[i] = res / segment.size();
+        }
+
+        auto mean_res = residual_and_mean.second;
+        auto k0 = mean_res * 0.75f;
+        auto k1 = mean_res * 1.25f;
+
+        // static 1, dynamic 0
+        std::vector<uint8_t> kmeans(segments.size());
+
+        bool convergent = false;
+
+        while (!convergent)
+        {
+            gca::counter_t k0_count = 0;
+            gca::counter_t k1_count = 0;
+
+            float new_k0 = 0.0f;
+            float new_k1 = 0.0f;
+
+            for (size_t i = 0; i < segments.size(); i++)
+            {
+                if (abs(residual_of_segment[i] - k0) <= abs(residual_of_segment[i] - k1))
+                {
+                    kmeans[i] = 0;
+                    k0_count += 1;
+                    new_k0 += residual_of_segment[i];
+                }
+                else
+                {
+                    kmeans[i] = 1;
+                    k1_count += 1;
+                    new_k1 += residual_of_segment[i];
+                }
+            }
+
+            if (!k0_count)
+            {
+                new_k0 = k0;
+                new_k1 /= k1_count;
+            }
+            else if (!k1_count)
+            {
+                new_k1 = k1;
+                new_k0 /= k0_count;
+            }
+            else
+            {
+                new_k0 /= k0_count;
+                new_k1 /= k1_count;
+            }
+
+            if ((abs(new_k0 - k0) < 0.0000001f) && (abs(new_k1 - k1) < 0.0000001f))
+                convergent = true;
+
+            k0 = new_k0;
+            k1 = new_k1;
+        }
+
+        uint8_t dyna_cluster;
+        float d_k;
+        float s_k;
+
+        if (k0 > k1)
+        {
+            dyna_cluster = 0;
+            d_k = k0;
+            s_k = k1;
+        }
+
+        else
+        {
+            dyna_cluster = 1;
+            d_k = k1;
+            s_k = k0;
+        }
+
+        thrust::host_vector<gca::index_t> dyna_points;
+        for (size_t i = 0; i < segments.size(); i++)
+        {
+            if (kmeans[i] == dyna_cluster && d_k - s_k >= 1 * mean_res &&
+                1.5 * abs(residual_of_segment[i] - d_k) <= abs(residual_of_segment[i] - s_k))
+            {
+                dyna_points.insert(dyna_points.end(), segments[i].begin(), segments[i].end());
+            }
+        }
+
+        auto moving_pc = src_pc->create_new_by_index(dyna_points);
+
+        auto euclidean_cluster =
+            moving_pc->euclidean_clustering(0.02, 200, moving_pc->points_number());
+
+        std::shared_ptr<gca::point_cloud> moving_obj = std::make_shared<gca::point_cloud>();
+
+        for (size_t i = 0; i < euclidean_cluster.size(); i++)
+        {
+            auto obj = moving_pc->create_new_by_index(euclidean_cluster[i]);
+            color_icp.set_source_point_cloud(obj);
+            color_icp.align();
+
+            transform_m = color_icp.get_final_transformation_matrix();
+
+            float cos_theta = 0.5 * (transform_m(0, 0) + transform_m(1, 1) + transform_m(2, 2) - 1);
+            // Translation square
+            float translation_square = transform_m(0, 3) * transform_m(0, 3) +
+                                       transform_m(1, 3) * transform_m(1, 3) +
+                                       transform_m(2, 3) * transform_m(2, 3);
+            if (cos_theta <= 0.9985 || translation_square >= 0.0004f)
+            {
+                obj->transform(transform_m);
+                *moving_obj += *obj;
+                std::cout << "Rotation: " << cos_theta << std::endl;
+                std::cout << "transformation sqr: " << translation_square << std::endl;
+            }
+        }
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "whole "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms" << std::endl;
+
+        auto points_0 = moving_obj->download();
+        auto number_of_points = points_0.size();
+        cloud_0->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_0[i].coordinates.x;
+            p.y = -points_0[i].coordinates.y;
+            p.z = -points_0[i].coordinates.z;
+            p.r = 255;
+            p.g = 0;
+            p.b = 0;
+            cloud_0->points[i] = p;
+        }
+
+        auto points_1 = pc_remove_noise_0->download();
+        number_of_points = points_1.size();
+        cloud_1->points.resize(number_of_points);
+        for (size_t i = 0; i < number_of_points; i++)
+        {
+            PointT p;
+            p.x = points_1[i].coordinates.x;
+            p.y = -points_1[i].coordinates.y;
+            p.z = -points_1[i].coordinates.z;
+            p.r = points_1[i].color.r * 255;
+            p.g = points_1[i].color.g * 255;
+            p.b = points_1[i].color.b * 255;
+            cloud_1->points[i] = p;
+        }
+        *cloud_1 += *cloud_0;
 
         src_pc = pc_remove_noise_0;
 
-        std::cout << color_icp.get_RSME() << std::endl;
-        auto end = std::chrono::steady_clock::now();
+        viewer_0.showCloud(cloud_1);
+        */
+
+        /*
+        auto points_0 = src_pc->download();
+        auto number_of_points = points_0.size();
+        cloud_1->clear();
+        cloud_1->points.resize(number_of_points);
+
+        for (size_t i = 0; i < segments.size(); i++)
+        {
+            if (kmeans[i] == dyna)
+            {
+                for (const auto j : segments[i])
+                {
+                    PointT p;
+                    p.x = points_0[j].coordinates.x;
+                    p.y = -points_0[j].coordinates.y;
+                    p.z = -points_0[j].coordinates.z;
+
+                    p.r = 255;
+                    p.g = 0;
+                    p.b = 0;
+
+                    cloud_1->points[j] = p;
+                }
+            }
+            else
+            {
+                for (const auto j : segments[i])
+                {
+                    PointT p;
+                    p.x = points_0[j].coordinates.x;
+                    p.y = -points_0[j].coordinates.y;
+                    p.z = -points_0[j].coordinates.z;
+
+                    p.r = points_0[j].color.r * 255;
+                    p.g = points_0[j].color.g * 255;
+                    p.b = points_0[j].color.b * 255;
+
+                    cloud_1->points[j] = p;
+                }
+            }
+        }
+        */
+        // std::this_thread::sleep_for(100ms);
+
+        // std::cout << color_icp.get_RSME() << std::endl;
+        // auto end = std::chrono::steady_clock::now();
+        /*
         std::cout << "Total cuda time in milliseconds: "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
         */
+
         /*
         detector.update_point_cloud(pc_downsampling_0);
 
@@ -272,42 +715,6 @@ int main(int argc, char *argv[])
         }
         viewer_0.showCloud(cloud_0);
         */
-        /* RANSAC Seg plane
-        /
-        start = std::chrono::steady_clock::now();
-        pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-        pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-        pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-
-        seg.setOptimizeCoefficients(true);
-        seg.setModelType(pcl::SACMODEL_PLANE);
-        seg.setMethodType(pcl::SAC_RANSAC);
-        seg.setMaxIterations(1000);
-        seg.setDistanceThreshold(0.01);
-
-        seg.setInputCloud(cloud_1);
-        seg.segment(*inliers, *coefficients);
-
-        end = std::chrono::steady_clock::now();
-
-        std::cout << "RANSAC seg: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                  << "ms" << std::endl;
-
-        if (inliers->indices.size() == 0)
-        {
-            PCL_ERROR("Could not estimate a planar model for the given dataset.");
-            return -1;
-        }
-
-        for (int index : inliers->indices)
-        {
-            cloud_1->points[index].r = 0;
-            cloud_1->points[index].g = 255;
-            cloud_1->points[index].b = 0;
-        }
-        */
-
         /*
         auto points_0 = pc_downsampling_0->download();
         auto number_of_points = points_0.size();
@@ -633,6 +1040,7 @@ int main(int argc, char *argv[])
         std::cout << "Points number after PCL filter: " << cloud_filtered->size() << std::endl;
         */
         /* Voxel Grid PCL */
+        /*
         auto points_1 = pc_0->download();
         number_of_points = points_1.size();
 
@@ -662,7 +1070,7 @@ int main(int argc, char *argv[])
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                   << "ms" << std::endl;
         std::cout << "Filtered cloud size: " << cloud_filtered->size() << std::endl;
-
+        */
         std::cout << "__________________________________________________" << std::endl;
     }
 

@@ -70,6 +70,8 @@ bool realsense_device::find_device()
             if (dpt.supports(RS2_OPTION_LASER_POWER))
             {
                 // Query min and max values:
+                sensor.set_option(rs2_option::RS2_OPTION_VISUAL_PRESET,
+                                  rs2_rs400_visual_preset::RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY);
                 auto range = dpt.get_option_range(RS2_OPTION_LASER_POWER);
                 dpt.set_option(RS2_OPTION_LASER_POWER, range.max);
             }

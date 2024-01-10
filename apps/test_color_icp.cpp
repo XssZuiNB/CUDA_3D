@@ -3,7 +3,7 @@
 #include "geometry/type.hpp"
 #include "movement_detection/movement_detection.hpp"
 #include "registration/color_icp.hpp"
-#include "util/eigen_disable_bad_warnings.cuh"
+#include "util/eigen_disable_bad_warnings.hpp"
 #include "util/gpu_check.hpp"
 
 #include <future>
@@ -347,13 +347,13 @@ int main(int argc, char *argv[])
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr src(new pcl::PointCloud<pcl::PointXYZRGB>());
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr tgt(new pcl::PointCloud<pcl::PointXYZRGB>());
 
-    if (!loadPointCloud("../../data/cloud_bin_01.pcd", *src))
+    if (!loadPointCloud("../../data/frag_115.ply", *src))
     {
         std::cout << "Cant read source!" << std::endl;
         return 1;
     }
 
-    if (!loadPointCloud("../../data/cloud_bin_02.pcd", *tgt))
+    if (!loadPointCloud("../../data/frag_116.ply", *tgt))
     {
         std::cout << "Cant read target!" << std::endl;
         return 1;
@@ -405,9 +405,9 @@ int main(int argc, char *argv[])
 
     auto down_sample_src = src_device->voxel_grid_down_sample(0.02f);
     auto down_sample_tgt = tgt_device->voxel_grid_down_sample(0.02f);
-    down_sample_tgt->estimate_normals(0.04f);
+    down_sample_tgt->estimate_normals(0.05f);
 
-    gca::color_icp color_icp(100, 0.08f, 0.04f);
+    gca::color_icp color_icp(100, 0.05f, 0.04f);
     color_icp.set_source_point_cloud(down_sample_src);
     color_icp.set_target_point_cloud(down_sample_tgt);
 

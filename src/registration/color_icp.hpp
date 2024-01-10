@@ -9,12 +9,14 @@
 
 // CUDA
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
 namespace gca
 {
 class color_icp
 {
 public:
+    color_icp() = delete;
     color_icp(size_t maximum_iterations, float max_correspondence_distance,
               float search_radius_color_gradient);
 
@@ -22,6 +24,10 @@ public:
     void set_target_point_cloud(const std::shared_ptr<const gca::point_cloud> new_pc);
 
     bool align();
+
+    std::pair<thrust::device_vector<float>, float> get_abs_residual();
+
+    std::pair<thrust::host_vector<float>, float> get_abs_residual_host();
 
     const mat4x4 &get_final_transformation_matrix() const;
     float get_RSME() const;
@@ -31,10 +37,13 @@ public:
     ~color_icp() = default;
 
 private:
+    bool compute_color_gradient_target();
+
+private:
     // convergence threshold
     // theta = arccos(0.5 * (r_11 + r_22 + r_33 - 1)) from rotation matrix
     // if theta -> 0 => cos(theta) -> 1
-    static constexpr float m_color_icp_lambda = 0.95f;              // 0.968 from paper
+    static constexpr float m_color_icp_lambda = 0.968f;             // 0.968 from paper
     static constexpr float m_translations_thres_square = 0.000001f; // square number!
     static constexpr float m_rotation_thres = 1.0f - m_translations_thres_square;
     size_t m_max_iter;

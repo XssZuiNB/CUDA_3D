@@ -191,10 +191,10 @@ struct align_normal_direction_functor
                       result_normals.begin(), compute_normal_functor());
 
     // This function could be used but now its not needed.
-    
+
     thrust::for_each(result_normals.begin(), result_normals.end(),
-                         align_normal_direction_functor());
-    
+                     align_normal_direction_functor());
+
     return ::cudaSuccess;
 }
 } // namespace gca

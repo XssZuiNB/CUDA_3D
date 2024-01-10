@@ -1,6 +1,6 @@
 #pragma once
 
-#include "util/eigen_disable_bad_warnings.cuh"
+#include "util/eigen_disable_bad_warnings.hpp"
 #include "util/math.cuh"
 
 #include <Eigen/Core>
@@ -56,7 +56,13 @@ template <bool IF_USE_DOUBLE = false> mat4x4 solve_JTJ_JTr(const mat6x6 &JTJ, co
         Eigen::Vector6d JTr_d(JTr_f.cast<double>());
 
         // equation 21 in paper of color icp
-        Eigen::Vector6d se3_vec(JTJ_d.ldlt().solve(-JTr_d));
+        Eigen::LDLT<Eigen::Matrix6d> ldlt(JTJ_d);
+        if (ldlt.info() != Eigen::Success)
+        {
+            return mat4x4::get_identity();
+        }
+
+        Eigen::Vector6d se3_vec(ldlt.solve(-JTr_d));
         SE3_matrix_eigen = transform_vec6d_to_mat4f(se3_vec);
     }
     else

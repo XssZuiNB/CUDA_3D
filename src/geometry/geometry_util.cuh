@@ -54,6 +54,19 @@ struct min_max_bound_functor
     }
 };
 
+struct add_points_coordinates_functor
+{
+    __forceinline__ __device__ gca::point_t operator()(const gca::point_t &first,
+                                                       const gca::point_t &second)
+    {
+        gca::point_t temp;
+        temp.coordinates = make_float3(first.coordinates.x + second.coordinates.x,
+                                       first.coordinates.y + second.coordinates.y,
+                                       first.coordinates.z + second.coordinates.z);
+        return temp;
+    }
+};
+
 __forceinline__ float3 cuda_compute_min_bound(const thrust::device_vector<gca::point_t> &points)
 {
     gca::point_t init{.coordinates{.x = FLT_MAX, .y = FLT_MAX, .z = FLT_MAX}};
@@ -89,6 +102,14 @@ __forceinline__ thrust::pair<float3, float3> cuda_compute_min_max_bound(
 
     return thrust::make_pair(thrust::get<0>(result).coordinates,
                              thrust::get<1>(result).coordinates);
+}
+
+__forceinline__ float3 cuda_compute_centroid(const thrust::device_vector<gca::point_t> &points)
+{
+    gca::point_t init{.coordinates{.x = 0.0f, .y = 0.0f, .z = 0.0f}};
+    return thrust::reduce(points.begin(), points.end(), init, add_points_coordinates_functor())
+               .coordinates /
+           points.size();
 }
 
 /******************************* Functor check if a point is valid ******************************/

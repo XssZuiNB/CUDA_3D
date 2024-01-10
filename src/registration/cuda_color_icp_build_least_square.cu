@@ -75,7 +75,7 @@ struct compute_residual_functor : compute_residual_pair_functor
         const thrust::tuple<gca::point_t, gca::index_t> &pts_and_nn) const
     {
         const auto &pair = compute_residual_pair_functor::operator()(pts_and_nn);
-        return pair.first + pair.second;
+        return abs(pair.first) + abs(pair.second);
     }
 };
 
@@ -307,7 +307,7 @@ struct add_JTJ_JTr_and_RMSE_functor
     return ::cudaSuccess;
 }
 
-::cudaError_t cuda_compute_residual_color_icp(
+::cudaError_t cuda_compute_abs_residual_color_icp(
     thrust::device_vector<float> &result_rg_plus_rc,
     const thrust::device_vector<gca::point_t> &src_points,
     const thrust::device_vector<gca::point_t> &tgt_points,
@@ -345,6 +345,47 @@ struct add_JTJ_JTr_and_RMSE_functor
     thrust::transform(
         zipped_begin, zipped_end, result_rg_plus_rc.begin(),
         compute_residual_functor(tgt_points, tgt_normals, tgt_color_gradient, lambda));
+
+    return ::cudaSuccess;
+}
+
+::cudaError_t cuda_compute_RMSE_color_icp(thrust::device_vector<float> &result_rg_plus_rc,
+                                          const thrust::device_vector<gca::point_t> &src_points,
+                                          const thrust::device_vector<gca::point_t> &tgt_points,
+                                          const thrust::device_vector<float3> &tgt_normals,
+                                          const thrust::device_vector<float3> &tgt_color_gradient,
+                                          const thrust::device_vector<gca::index_t> &nn_src_tgt,
+                                          const float lambda)
+{
+    if (lambda > 1.0f)
+    {
+        return ::cudaErrorInvalidValue;
+    }
+
+    auto n_points_src = src_points.size();
+    if (nn_src_tgt.size() != n_points_src)
+    {
+        return ::cudaErrorInvalidValue;
+    }
+
+    if (tgt_points.size() != tgt_normals.size() || tgt_points.size() != tgt_color_gradient.size())
+    {
+        return ::cudaErrorInvalidValue;
+    }
+
+    if (result_rg_plus_rc.size() != n_points_src)
+    {
+        result_rg_plus_rc.resize(n_points_src);
+    }
+
+    auto zipped_begin =
+        thrust::make_zip_iterator(thrust::make_tuple(src_points.begin(), nn_src_tgt.begin()));
+
+    auto zipped_end =
+        thrust::make_zip_iterator(thrust::make_tuple(src_points.end(), nn_src_tgt.end()));
+
+    thrust::transform(zipped_begin, zipped_end, result_rg_plus_rc.begin(),
+                      compute_RMSE_functor(tgt_points, tgt_normals, tgt_color_gradient, lambda));
 
     return ::cudaSuccess;
 }

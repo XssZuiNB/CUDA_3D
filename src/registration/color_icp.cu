@@ -9,6 +9,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#include <thrust/pair.h>
+#include <thrust/reduce.h>
 
 namespace gca
 {
@@ -45,31 +47,8 @@ void color_icp::set_target_point_cloud(const std::shared_ptr<const gca::point_cl
     m_target_pc = new_pc;
 }
 
-bool color_icp::align()
+bool color_icp::compute_color_gradient_target()
 {
-    if (m_color_icp_done)
-    {
-        return true;
-    }
-
-    if (!m_source_pc)
-    {
-        std::cout << YELLOW << "Need to set a valid source point cloud" << std::endl;
-        return false;
-    }
-
-    if (!m_target_pc)
-    {
-        std::cout << YELLOW << "Need to set a valid target point cloud" << std::endl;
-        return false;
-    }
-
-    if (!m_target_pc->has_normals())
-    {
-        std::cout << YELLOW << "Need to estimate normals of target point cloud" << std::endl;
-        return false;
-    }
-
     auto &pts_tgt = m_target_pc->get_points();
     auto &normals_tgt = m_target_pc->get_normals();
 
@@ -104,6 +83,101 @@ bool color_icp::align()
 
         m_color_gradient_done = true;
     }
+    return true;
+}
+
+/* result.first is a device vector of residual for each point, result.second is the average*/
+std::pair<thrust::device_vector<float>, float> color_icp::get_abs_residual()
+{
+    if (!m_source_pc)
+    {
+        std::cout << YELLOW << "Need a source point cloud! Invalid result returned!" << std::endl;
+        return std::make_pair(thrust::device_vector<float>(), 0.0f);
+    }
+
+    if (!m_target_pc)
+    {
+        std::cout << YELLOW << "Need a target point cloud! Invalid result returned!" << std::endl;
+        return std::make_pair(thrust::device_vector<float>(), 0.0f);
+    }
+
+    if (!m_target_pc->has_normals())
+    {
+        std::cout << YELLOW
+                  << "Need to estimate normals of target point cloud! Invalid result returned!"
+                  << std::endl;
+        return std::make_pair(thrust::device_vector<float>(), 0.0f);
+    }
+
+    if (!compute_color_gradient_target())
+    {
+        std::cout << YELLOW << "Compute color gradient failed! Invalid result returned!"
+                  << std::endl;
+        return std::make_pair(thrust::device_vector<float>(), 0.0f);
+    }
+
+    auto n_points = m_source_pc->points_number();
+    auto nn_src_tgt = gca::point_cloud::nn_search(*m_source_pc, *m_target_pc, m_max_corr_dist);
+    thrust::device_vector<float> result_rg_plus_rc(n_points);
+
+    auto err = cuda_compute_abs_residual_color_icp(
+        result_rg_plus_rc, m_source_pc->get_points(), m_target_pc->get_points(),
+        m_target_pc->get_normals(), m_target_pc_color_gradient, nn_src_tgt, m_color_icp_lambda);
+
+    if (err != ::cudaSuccess)
+    {
+        check_cuda_error(err, __FILE__, __LINE__);
+        std::cout << YELLOW << "Compute residual failed! Invalid result returned!" << std::endl;
+        return std::make_pair(thrust::device_vector<float>(), 0.0f);
+    }
+
+    float mean =
+        thrust::reduce(result_rg_plus_rc.begin(), result_rg_plus_rc.end(), 0.0f) / n_points;
+    return std::make_pair(std::move(result_rg_plus_rc), mean);
+}
+
+std::pair<thrust::host_vector<float>, float> color_icp::get_abs_residual_host()
+{
+    auto device_result = get_abs_residual();
+    if (device_result.first.size() == 0)
+    {
+        return std::make_pair(thrust::host_vector<float>(), 0.0f);
+    }
+
+    thrust::host_vector<float> host_residual_each_point(device_result.first);
+    return std::make_pair(std::move(host_residual_each_point), device_result.second);
+}
+
+bool color_icp::align()
+{
+    if (m_color_icp_done)
+    {
+        return true;
+    }
+
+    if (!m_source_pc)
+    {
+        std::cout << YELLOW << "Need to set a valid source point cloud" << std::endl;
+        return false;
+    }
+
+    if (!m_target_pc)
+    {
+        std::cout << YELLOW << "Need to set a valid target point cloud" << std::endl;
+        return false;
+    }
+
+    if (!m_target_pc->has_normals())
+    {
+        std::cout << YELLOW << "Need to estimate normals of target point cloud" << std::endl;
+        return false;
+    }
+
+    if (!compute_color_gradient_target())
+    {
+        std::cout << YELLOW << "Compute color gradient failed!" << std::endl;
+        return false;
+    }
 
     mat6x6 JTJ;
     mat6x1 JTr;
@@ -112,12 +186,17 @@ bool color_icp::align()
     for (size_t i = 0; i < m_max_iter; i++)
     {
         auto nn_src_tgt = gca::point_cloud::nn_search(*m_source_pc, *m_target_pc, m_max_corr_dist);
+        if (!nn_src_tgt.size())
+        {
+            break;
+        }
 
         auto err = cuda_build_gauss_newton_color_icp(
-            JTJ, JTr, RMSE, m_source_pc->get_points(), pts_tgt, normals_tgt,
-            m_target_pc_color_gradient, nn_src_tgt, m_color_icp_lambda);
+            JTJ, JTr, RMSE, m_source_pc->get_points(), m_target_pc->get_points(),
+            m_target_pc->get_normals(), m_target_pc_color_gradient, nn_src_tgt, m_color_icp_lambda);
         if (err != ::cudaSuccess)
         {
+            check_cuda_error(err, __FILE__, __LINE__);
             std::cout << YELLOW << "Gauss Newton failed!" << std::endl;
             m_transformation_matrix.set_identity();
             return false;
@@ -127,7 +206,7 @@ bool color_icp::align()
         // mat6x6 lm_coef = 0.01f * (mat6x6::get_identity() * JTJ);
         // JTJ += lm_coef;
 
-        auto this_transformation_matrix = solve_JTJ_JTr(JTJ, JTr);
+        auto this_transformation_matrix = solve_JTJ_JTr<true>(JTJ, JTr);
 
         m_source_pc->transform(this_transformation_matrix);
 
