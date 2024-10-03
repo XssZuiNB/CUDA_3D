@@ -14,3 +14,5 @@
 > Unbuntu Linux should follow this guide to install the lib for realsense camera
 https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md
 
+### 5. Demo 
+An easy dense slam implementation with color-ICP (https://openaccess.thecvf.com/content_ICCV_2017/papers/Park_Colored_Point_Cloud_ICCV_2017_paper.pdf) runs within 7ms per frame: https://youtu.be/5NcDEhguzGU.
